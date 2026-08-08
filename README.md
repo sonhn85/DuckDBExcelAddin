@@ -591,6 +591,7 @@ Excel limits apply:
 |---------|---------|
 | Rows | 1,048,576 |
 | Columns | 16,384 |
+| String length | 32,767 |
 
 Queries exceeding these limits are not supported.
 
