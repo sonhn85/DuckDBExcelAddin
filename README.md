@@ -691,7 +691,7 @@ These task can now be performed locally using a single embedded analytical datab
 
 One of the goals of this project is to bring that capability closer to everyday Excel users.
 
-Excel remains one of the most widely used analytical tools, especially among finance, accounting, auditing, operations, risk management, and business users. However, many analytical workloads have outgrown what traditional Excel formulas, PivotTables, and worksheets can efficiently handle.
+Excel remains one of the most widely used analytical tools, especially among finance, accounting, auditing, operations, risk management, and business users. However, many analytical workloads have outgrown what traditional Excel formulas, PivotTables, PowerQuery and worksheets can efficiently handle.
 
 By combining Excel with DuckDB, users can:
 
@@ -719,7 +719,7 @@ DuckDB is an extraordinary project that brings tremendous value to local and off
 
 This project would not exist without the work of the DuckDB community.
 
-Special thanks xlduckdb that I have used in real life and inspired me about formula intergation path and xlrange mechanism.
+Special thanks to xlduckdb that I have used in real life and inspired me about formula intergation path and xlrange mechanism.
 
 Addition thanks to:
 
