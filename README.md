@@ -354,6 +354,7 @@ Executes one or more SQL statements using prepared statements.
 - DML
 - Queries
 - Excel ranges via `xlrange()`
+- PIVOT without dynamic pivot value
 
 ### Syntax
 
@@ -424,8 +425,8 @@ Executes SQL directly through DuckDB.
 ```excel
 =DUCKDB.QUERY(
 "PIVOT xlrange(1)
- ON khoi
- USING SUM(dn)
+ ON group
+ USING SUM(amount)
  GROUP BY cif",
 A1:C100
 )
@@ -518,7 +519,7 @@ A1:D100
 "SELECT *
  FROM xlrange(?) a
  JOIN xlrange(?) b
-   ON a.CIF = b.CIF",
+   ON a.cif = b.cif",
 A1:D100,
 F1:H100,
 1,
@@ -574,7 +575,7 @@ Configured globally using:
 
 Use **EXEC** when parameter binding or multiple statements are required.
 
-Use **QUERY** when working with PIVOT or advanced DuckDB SQL features.
+Use **QUERY** when working with dynamic PIVOT or advanced DuckDB SQL features.
 
 ---
 
@@ -681,9 +682,12 @@ Many analytical tasks that previously required:
 - Complex ETL pipelines
 - Heavy frameworks
 - Python programming
+- Notebooks
 - Specialized BI tools
 
-can now be performed locally using a single embedded analytical database.
+that is complex to setup and unfamilier to office users, managers.
+
+These task can now be performed locally using a single embedded analytical database.
 
 One of the goals of this project is to bring that capability closer to everyday Excel users.
 
@@ -715,10 +719,10 @@ DuckDB is an extraordinary project that brings tremendous value to local and off
 
 This project would not exist without the work of the DuckDB community.
 
-Additional thanks to:
+Special thanks xlduckdb that I have used in real life and inspired me about formula intergation path and xlrange mechanism.
 
-- DuckDB
+Addition thanks to:
+
 - Microsoft Excel XLL SDK
-- xlduckdb
 
 Parts of this documentation were drafted with AI assistance and reviewed manually.
