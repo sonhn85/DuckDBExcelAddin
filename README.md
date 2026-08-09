@@ -599,7 +599,7 @@ Excel limits apply:
 | Rows | 1,048,576 |
 | Columns | 16,384 |
 | String length | 32,767 |
-| Number types | int32, double |
+| Number precision | int32, double |
 
 Queries exceeding these limits are not supported.
 
