@@ -267,7 +267,7 @@ Contributions and testing reports are welcome.
 
 # Build Notes
 
-## XLCALL.H Compatibility
+## XLCALL.H, FRAMEWRK.C Compatibility
 
 Some versions of `XLCALL.H` contain a struct member named:
 
@@ -291,7 +291,7 @@ rename to:
 xbool
 ```
 
-and update the corresponding references.
+and update the corresponding references in FRAMEWRK.C.
 
 This modification only affects local compilation and does not affect runtime behavior.
 
@@ -306,14 +306,17 @@ When building with MinGW-w64 or w64devkit, unresolved external references may oc
 A simple workaround is providing stub implementations:
 
 ```c
-int PASCAL Excel4(int xlfn, LPXLOPER pxRes, int count, ...)
+#include <windows.h>
+#include "XLCALL.H"
+
+int _cdecl Excel4(int xlfn, LPXLOPER operRes, int count,... )
 {
-    return 0;
+   return xlretAbort;
 }
 
-int PASCAL Excel4v(int xlfn, LPXLOPER pxRes, int count, LPXLOPER opers[])
+int pascal Excel4v(int xlfn, LPXLOPER operRes, int count, LPXLOPER opers[])
 {
-    return 0;
+   return xlretAbort;
 }
 ```
 
