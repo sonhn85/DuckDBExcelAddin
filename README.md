@@ -584,6 +584,10 @@ Use **QUERY** when working with dynamic PIVOT or advanced DuckDB SQL features.
 
 # Limitations
 
+## Duckdb composite types
+
+Represent in varchar for Excel to display
+
 ## Excel Worksheet Limits
 
 Results are returned as Excel Dynamic Arrays.
@@ -595,6 +599,7 @@ Excel limits apply:
 | Rows | 1,048,576 |
 | Columns | 16,384 |
 | String length | 32,767 |
+| Number types | int32, double |
 
 Queries exceeding these limits are not supported.
 
