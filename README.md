@@ -55,6 +55,8 @@ The add-in provides:
 
 ✅ Drop-in DuckDB upgrades
 
+✅ Built-in diagnostics (`DUCKDB.INFO`)
+
 ---
 
 # Why This Project?
@@ -215,6 +217,7 @@ with configurable schema inference:
 - Configurable type inference
 - Direct query mode for advanced DuckDB features
 - Runtime configurable sampling
+- Add-in diagnostics (`DUCKDB.INFO`)
 
 ---
 
@@ -533,6 +536,51 @@ F1:H100,
 - Column names must be non-empty.
 - Ranges must appear before scalar parameters.
 - Range numbering starts at 1.
+
+## DUCKDB.INFO
+
+Returns diagnostic information about the add-in and the currently loaded DuckDB runtime.
+
+This function is useful for:
+
+- Verifying the installed add-in version
+- Confirming which DuckDB version is loaded
+- Checking the current `xlrange()` schema inference sample size
+- Troubleshooting deployment and upgrade issues
+
+### Syntax
+
+```excel
+=DUCKDB.INFO()
+```
+
+### Example Result
+
+```text
+Add-in version: x.x.x
+DuckDB version: x.x.x
+Sample size: 30
+```
+
+### Development Build Example
+
+```text
+Add-in version: dev
+DuckDB version: v1.5.4
+Sample size: 30
+```
+
+### Notes
+
+- The add-in version is supplied at build time through the `ADDIN_VERSION` build variable.
+- The DuckDB version is obtained from the loaded `duckdb.dll`.
+- The sample size corresponds to the current value configured through:
+
+```excel
+=DUCKDB.SETSAMPLE(...)
+```
+
+- This function can be used to verify that a DuckDB DLL upgrade has been loaded successfully.
 
 ---
 
