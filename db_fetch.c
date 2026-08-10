@@ -28,7 +28,6 @@ static const double DEC_DIVISORS[] = {
 #define US_PER_DAY  86400000000.0           // microseconds per day
 #define NS_PER_DAY  86400000000000.0        // nanoseconds per day
 #define EPOCH_DELTA 25569.0                 // in days between excel and duckdb epoch
-#define TWO64       18446744073709551616.0  // 2^64
 #define TIMETZ_OFFSET_BITS      24
 #define XL_MAX_ROW              0x00100000
 #define XL_MAX_COL              0x4000
