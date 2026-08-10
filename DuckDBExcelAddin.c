@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdatomic.h>
+#include <stdio.h>
 
 #include "DuckDBExcelAddin.h"
 #include "db_lib_loader.h"
@@ -12,6 +13,7 @@
 #define XLTYPEMASK              0x0fff
 
 #define ERR_MSG_MAX_LEN         512
+#define ADDIN_INFO_LEN          0x7fff
 
 #define ERR_MSG_INTERNAL        "Error: Internal error"
 #define ERR_MSG_PARAM_PARSING   "Error: Invalid parameters"
@@ -25,6 +27,7 @@
 #define ERR_MSG_TBL_FUNC_REG    "Error: xlrange() registration failed"
 #define ERR_MSG_SPLIT_STMT      "Error: Statement parsing failed"
 #define ERR_MSG_BIND_UNSUPPORT  "Error: QUERY mode does not support parameters"
+#define ERR_MSG_ADDIN_INFO      "Error: Failed to get add-in info"
 
 // globals
 static HMODULE g_duckdb_dll = NULL;
@@ -676,4 +679,26 @@ void WINAPI query_async(
         false,
         PARAM_LIST
     );
+}
+
+LPXLOPER12 addin_info(void)
+{
+    char buf[ADDIN_INFO_LEN];
+    const char *duckdb_ver = "unknown";
+    if (DUCKDB_LIBRARY_VERSION)
+        duckdb_ver = DUCKDB_LIBRARY_VERSION();
+    int n = snprintf(
+        buf,
+        sizeof(buf),
+        "Add-in version: %s\n"
+        "DuckDB version: %s\n"
+        "Sample size: %zu",
+        ADDIN_VERSION,
+        duckdb_ver ? duckdb_ver : "unknown",
+        atomic_load(&g_sample_count)
+    );
+    if (n < 0 || (size_t)n >= sizeof(buf))
+        return make_string_cell(ERR_MSG_ADDIN_INFO);
+
+    return make_string_cell(buf);
 }
