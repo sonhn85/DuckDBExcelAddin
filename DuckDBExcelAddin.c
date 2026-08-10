@@ -11,18 +11,20 @@
 
 #define XLTYPEMASK              0x0fff
 
-#define ERR_MSG_INTERNAL        "Error: An error occurred"
-#define ERR_MSG_PARAM_PARSING   "Error: Error parsing parameters"
-#define ERR_MSG_PARAM_BIND      "Error: Error binding parameters"
-#define ERR_MSG_DUCKDB_INIT     "Error: Fail to init DuckDB"
-#define ERR_MSG_UNICODE         "Error: Unicode conversion error"
+#define ERR_MSG_MAX_LEN         512
+
+#define ERR_MSG_INTERNAL        "Error: Internal error"
+#define ERR_MSG_PARAM_PARSING   "Error: Invalid parameters"
+#define ERR_MSG_PARAM_BIND      "Error: Parameter binding failed"
+#define ERR_MSG_DUCKDB_INIT     "Error: DuckDB initialization failed"
+#define ERR_MSG_UNICODE         "Error: Text conversion failed"
 #define ERR_MSG_STMT_EMPTY      "Error: Empty statement"
-#define ERR_MSG_STMT_PREPARE    "Error: Fail to prepare statement"
-#define ERR_MSG_STMT_EXEC       "Error: Error executing statement"
-#define ERR_MSG_RESULT_FETCH    "Error: Error fetching data"
-#define ERR_MSG_TBL_FUNC_REG    "Error: Fail to register xlrange function"
-#define ERR_MSG_SPLIT_STMT      "Error: Fail to split statements"
-#define ERR_MSG_BIND_UNSUPPORT  "Error: Parameter binding unsupported"
+#define ERR_MSG_STMT_PREPARE    "Error: Statement preparation failed"
+#define ERR_MSG_STMT_EXEC       "Error: Statement execution failed"
+#define ERR_MSG_RESULT_FETCH    "Error: Result fetch failed"
+#define ERR_MSG_TBL_FUNC_REG    "Error: xlrange() registration failed"
+#define ERR_MSG_SPLIT_STMT      "Error: Statement parsing failed"
+#define ERR_MSG_BIND_UNSUPPORT  "Error: QUERY mode does not support parameters"
 
 // globals
 static HMODULE g_duckdb_dll = NULL;
@@ -322,6 +324,8 @@ static LPXLOPER12 execute_statement_create_range(
     chunk_list chunks = {0};
     idx_t n_stmts = 0;
     LPXLOPER12 result = NULL;
+    char buf[ERR_MSG_MAX_LEN];
+    buf[0] = '\0';
 
     if (!prepare_mode && nparam > 0) {
         result = make_string_cell(ERR_MSG_BIND_UNSUPPORT);
@@ -358,7 +362,7 @@ static LPXLOPER12 execute_statement_create_range(
         goto cleanup;
     }
 
-    // Use prepared statement branch
+    // Use prepared statement
     if (prepare_mode)
     {
         duckdb_extracted_statements stmts = NULL;
@@ -415,9 +419,9 @@ static LPXLOPER12 execute_statement_create_range(
             }
             if ((i + 1) == n_stmts) // last statement
             {
-                if (fetch_chunks(&qresult, &chunks, &msg) == 0)
+                if (fetch_chunks(&qresult, &chunks, buf, sizeof(buf)) == 0)
                 {
-                    result = make_string_cell(msg ? msg : ERR_MSG_RESULT_FETCH);
+                    result = make_string_cell((buf[0]) ? buf : ERR_MSG_RESULT_FETCH);
                     goto prepared_branch_destroy_result;
                 }
                 result = chunks_to_range(&chunks);
@@ -438,7 +442,7 @@ static LPXLOPER12 execute_statement_create_range(
         free(prep_stmts);
         if (stmts) DUCKDB_DESTROY_EXTRACTED(&stmts);
     }
-    // Use query mode
+    // direct query mode
     else 
     {
         duckdb_result qresult = {0};
@@ -449,9 +453,9 @@ static LPXLOPER12 execute_statement_create_range(
             result = make_string_cell(msg ? msg : ERR_MSG_STMT_EXEC);
             goto query_branch_cleanup;
         }
-        if (fetch_chunks(&qresult, &chunks, &msg) == 0)
+        if (fetch_chunks(&qresult, &chunks, buf, sizeof(buf)) == 0)
         {
-            result = make_string_cell(msg ? msg : ERR_MSG_RESULT_FETCH);
+            result = make_string_cell((buf[0]) ? buf : ERR_MSG_RESULT_FETCH);
             goto query_branch_cleanup;
         }
         result = chunks_to_range(&chunks);
