@@ -27,7 +27,7 @@ typedef struct chunk_list {
 } chunk_list;
 
 // function prototypes
-int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, const char **errmsg);
+int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, size_t buf_size);
 void free_and_reset_chunk_list(chunk_list *chunklist);
 LPXLOPER12 chunks_to_range(chunk_list *chunklist);
 
