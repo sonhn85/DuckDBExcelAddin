@@ -26,7 +26,6 @@ typedef void *(*TO_DUCKDB_FUNC_TYPE(duckdb_vector_get_data))(duckdb_vector vecto
 typedef uint64_t *(*TO_DUCKDB_FUNC_TYPE(duckdb_vector_get_validity))(duckdb_vector vector);
 typedef duckdb_type (*TO_DUCKDB_FUNC_TYPE(duckdb_column_type))(duckdb_result *result, idx_t col);
 typedef duckdb_logical_type (*TO_DUCKDB_FUNC_TYPE(duckdb_column_logical_type))(duckdb_result *result, idx_t col);
-typedef bool (*TO_DUCKDB_FUNC_TYPE(duckdb_string_is_inlined))(duckdb_string_t string);
 typedef uint8_t (*TO_DUCKDB_FUNC_TYPE(duckdb_decimal_scale))(duckdb_logical_type type);
 typedef const char *(*TO_DUCKDB_FUNC_TYPE(duckdb_result_error))(duckdb_result *result);
 typedef duckdb_type (*TO_DUCKDB_FUNC_TYPE(duckdb_decimal_internal_type))(duckdb_logical_type type);
@@ -99,7 +98,6 @@ X(duckdb_vector_get_data, DUCKDB_VECTOR_GET_DATA) \
 X(duckdb_vector_get_validity, DUCKDB_VECTOR_GET_VALIDITY) \
 X(duckdb_column_type, DUCKDB_COLUMN_TYPE) \
 X(duckdb_column_logical_type, DUCKDB_COLUMN_LOGICAL_TYPE) \
-X(duckdb_string_is_inlined, DUCKDB_STRING_IS_INLINED) \
 X(duckdb_decimal_scale, DUCKDB_DECIMAL_SCALE) \
 X(duckdb_result_error, DUCKDB_RESULT_ERROR) \
 X(duckdb_decimal_internal_type, DUCKDB_DECIMAL_INTERNAL_TYPE) \
