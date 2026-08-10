@@ -63,7 +63,7 @@ This project was inspired by **xlduckdb**, which demonstrated integration betwee
 
 The design goals of this project are slightly different.
 
-# Comparison with xlduckdb
+## Comparison with xlduckdb
 
 | Feature | DuckDBExcelAddin | xlduckdb |
 |----------|----------|----------|
@@ -101,8 +101,6 @@ Benefits:
 - Reusable SQL templates
 - Natural DuckDB workflow
 
----
-
 ## Asynchronous Execution
 
 Supports asynchronous worksheet functions.
@@ -116,8 +114,6 @@ Supports asynchronous worksheet functions.
 ```
 
 Long-running queries do not block Excel recalculation.
-
----
 
 ## Native DuckDB Workflows
 
@@ -150,8 +146,6 @@ FROM query_table(?)
 
 This avoids many string-based SQL construction patterns.
 
----
-
 ## Lightweight Native Deployment
 
 The add-in is implemented entirely in native C.
@@ -172,8 +166,6 @@ DuckDBExcelAddIn.xll
 duckdb.dll
 ```
 
----
-
 ## Drop-In DuckDB Upgrades
 
 DuckDB is loaded dynamically at runtime.
@@ -187,8 +179,6 @@ duckdb.dll
 with a newer compatible version.
 
 No recompilation of the XLL is required.
-
----
 
 ## Excel-Native Table Integration
 
@@ -244,8 +234,6 @@ Supported versions include:
 - Excel 2024 (64-bit)
 
 Older Excel versions without Dynamic Arrays are not supported.
-
----
 
 ## Platform
 
@@ -316,8 +304,6 @@ xbool
 and update the corresponding references in FRAMEWRK.C.
 
 This modification only affects local compilation and does not affect runtime behavior.
-
----
 
 ## FRAMEWRK Linker Requirement
 
@@ -407,8 +393,6 @@ A1:D100,
 )
 ```
 
----
-
 ## DUCKDB.EXEC.ASYNC
 
 Asynchronous version of `DUCKDB.EXEC`.
@@ -418,8 +402,6 @@ Asynchronous version of `DUCKDB.EXEC`.
 ```excel
 =DUCKDB.EXEC.ASYNC(sql, ...)
 ```
-
----
 
 ## DUCKDB.QUERY
 
@@ -458,8 +440,6 @@ A1:C100
 )
 ```
 
----
-
 ## DUCKDB.QUERY.ASYNC
 
 Asynchronous version of `DUCKDB.QUERY`.
@@ -469,8 +449,6 @@ Asynchronous version of `DUCKDB.QUERY`.
 ```excel
 =DUCKDB.QUERY.ASYNC(sql, ...)
 ```
-
----
 
 ## DUCKDB.SETSAMPLE
 
@@ -519,10 +497,6 @@ Disables sampling and scans all available data rows during schema inference.
 ### Return Value
 
 Returns the currently configured sample size.
-
----
-
-# Table Function Reference
 
 ## xlrange(index)
 
@@ -591,17 +565,16 @@ Configured globally using:
 
 | Feature | EXEC | QUERY |
 |----------|------|--------|
-| Parameters (`?`) | ✅ | ❌ |
-| Multiple statements | ✅ | ❌ |
-| Prepared statements | ✅ | ❌ |
-| PIVOT | ⚠️ | ✅ |
-| Advanced planner features | ⚠️ | ✅ |
+| Single statements | ✅ | ✅ |
+| Multiple statements | ✅ | ✅ |
 | xlrange() | ✅ | ✅ |
+| Bind Excel values to statement parameters | ✅ | ❌ |
+| PIVOT | ⚠️ | ✅ |
 | Async support | ✅ | ✅ |
 
-Use **EXEC** when parameter binding or multiple statements are required.
+Use **QUERY** when working with dynamic PIVOT.
 
-Use **QUERY** when working with dynamic PIVOT or advanced DuckDB SQL features.
+Use **EXEC** for all other scenarios.
 
 ---
 
@@ -618,11 +591,40 @@ Excel limits apply:
 | Rows | 1,048,576 |
 | Columns | 16,384 |
 | String length | 32,767 |
-| Number types | int32, double |
 
 Queries exceeding these limits are not supported.
 
----
+## Excel Number Types
+
+Big DuckDB numeric types (BIGINT, HUGEINT, DECIMAL) may lose precision when converted to Excel numbers (DOUBLE).
+
+## DuckDB Composite Types
+
+Excel cells can only represent a limited set of scalar values.
+
+DuckDB composite types such as:
+
+- LIST
+- STRUCT
+- MAP
+- UNION
+
+are currently **not returned directly to Excel**.
+
+Attempting to return these types result in error.
+
+Workaround:
+
+```sql
+SELECT CAST(my_struct AS VARCHAR)
+```
+
+or:
+
+```sql
+SELECT to_json(my_struct)
+```
+
 
 ## Excel Range-Based Data Exchange
 
@@ -653,8 +655,6 @@ LIMIT 1000
 
 Or only fetch aggregate data to the worksheet for the next step in your workflow.
 
----
-
 ## Not Intended as a Large Data Storage Engine
 
 This add-in is optimized for:
@@ -665,30 +665,6 @@ This add-in is optimized for:
 - Reporting
 
 It is not intended to replace dedicated database systems or data engineering pipelines.
-
-## DuckDB Composite Types
-
-Excel cells can only represent a limited set of scalar values.
-
-DuckDB composite types such as:
-
-- LIST
-- STRUCT
-- MAP
-- UNION
-
-are currently **not returned directly to Excel**.
-
-Attempting to return these types may result in:
-
-```text
-#VALUE!
-```
-
-Workaround:
-
-```sql
-SELECT CAST(my_struct AS VARCHAR)
 
 ---
 
@@ -774,7 +750,6 @@ Additional thanks to:
 - Microsoft Excel XLL SDK
 
 Parts of this documentation were drafted with AI assistance and reviewed manually.
-
 
 ---
 
