@@ -587,6 +587,8 @@ F1:H100,
 - Ranges must appear before scalar parameters.
 - Range numbering starts at 1.
 
+---
+
 # Type Inference
 
 Supported inferred DuckDB types:
@@ -596,7 +598,7 @@ Supported inferred DuckDB types:
 | Number | DOUBLE |
 | Boolean | BOOLEAN |
 | Text | VARCHAR |
-| Empty/Null | Ignored during inference |
+| Empty/Null/Error | Ignored during inference |
 
 Default sample count:
 
