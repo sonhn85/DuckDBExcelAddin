@@ -8,7 +8,12 @@
 #include "helper.h"
 
 #define DUCKDB_DLL                      L"duckdb.dll"
+
 #define XLRANGE_DEFAULT_SAMPLE_COUNT    30
+
+#ifndef ADDIN_VERSION
+#define ADDIN_VERSION                   "dev"
+#endif
 
 // worksheet functions have 30 params by default
 // edit to add more
@@ -36,7 +41,8 @@ X(exec,             L"DUCKDB.EXEC",          TYPE_STR(L"QD%", L"$"),   HELP_TEXT
 X(exec_async,       L"DUCKDB.EXEC.ASYNC",    TYPE_STR(L">XD%", L"$"),  HELP_TEXT,       FUNCTION_CATEGORY) \
 X(query,            L"DUCKDB.QUERY",         TYPE_STR(L"QD%", L"$"),   HELP_TEXT,       FUNCTION_CATEGORY) \
 X(query_async,      L"DUCKDB.QUERY.ASYNC",   TYPE_STR(L">XD%", L"$"),  HELP_TEXT,       FUNCTION_CATEGORY) \
-X(set_sample_size,  L"DUCKDB.SETSAMPLE",     L"HH",                    L"sample_count", FUNCTION_CATEGORY)
+X(set_sample_size,  L"DUCKDB.SETSAMPLE",     L"HH",                    L"sample_count", FUNCTION_CATEGORY) \
+X(addin_info,       L"DUCKDB.INFO",          L"Q",                     L"",             FUNCTION_CATEGORY)
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,7 +77,15 @@ DLLEXPORT void WINAPI query_async(
     PARAM_AND_TYPE_LIST
 );
 
+DLLEXPORT void WINAPI query_async(
+    LPXLOPER12 asyncHandle,
+    const wchar_t *stmt,
+    PARAM_AND_TYPE_LIST
+);
+
 DLLEXPORT unsigned short set_sample_size(unsigned short nsample);
+
+DLLEXPORT LPXLOPER12 addin_info(void);
 
 #undef DLLEXPORT
 
