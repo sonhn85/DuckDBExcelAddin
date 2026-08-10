@@ -354,7 +354,7 @@ No .NET runtime is required.
 
 ---
 
-# Functions Reference
+# Worksheet Functions Reference
 
 ## DUCKDB.EXEC
 
@@ -501,42 +501,6 @@ Disables sampling and scans all available data rows during schema inference.
 
 Returns the currently configured sample size.
 
-## xlrange(index)
-
-Exposes Excel ranges as DuckDB tables.
-
-### Example
-
-```excel
-=DUCKDB.EXEC(
-"SELECT *
- FROM xlrange(1)",
-A1:D100
-)
-```
-
-### Multiple Ranges with Parameter Binding
-
-```excel
-=DUCKDB.EXEC(
-"SELECT *
- FROM xlrange(?) a
- JOIN xlrange(?) b
-   ON a.cif = b.cif",
-A1:D100,
-F1:H100,
-1,
-2
-)
-```
-
-### Rules
-
-- First row is treated as column names.
-- Column names must be non-empty.
-- Ranges must appear before scalar parameters.
-- Range numbering starts at 1.
-
 ## DUCKDB.INFO
 
 Returns diagnostic information about the add-in and the currently loaded DuckDB runtime.
@@ -573,6 +537,7 @@ Sample size: 30
 ### Notes
 
 - The add-in version is supplied at build time through the `ADDIN_VERSION` build variable.
+- Development builds display `dev` when no version is specified.
 - The DuckDB version is obtained from the loaded `duckdb.dll`.
 - The sample size corresponds to the current value configured through:
 
@@ -583,6 +548,44 @@ Sample size: 30
 - This function can be used to verify that a DuckDB DLL upgrade has been loaded successfully.
 
 ---
+
+# DuckDB Table Function References
+
+## xlrange(index)
+
+Exposes Excel ranges as DuckDB tables.
+
+### Example
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(1)",
+A1:D100
+)
+```
+
+### Multiple Ranges with Parameter Binding
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(?) a
+ JOIN xlrange(?) b
+   ON a.cif = b.cif",
+A1:D100,
+F1:H100,
+1,
+2
+)
+```
+
+### Rules
+
+- First row is treated as column names.
+- Column names must be non-empty.
+- Ranges must appear before scalar parameters.
+- Range numbering starts at 1.
 
 # Type Inference
 
@@ -659,7 +662,7 @@ DuckDB composite types such as:
 
 are currently **not returned directly to Excel**.
 
-Attempting to return these types result in error.
+Attempting to return these types will return an error.
 
 Workaround:
 
@@ -725,7 +728,7 @@ Verify:
 - Excel is 64-bit
 - duckdb.dll is 64-bit
 - duckdb.dll is located next to DuckDBExcelAddIn.xll
-- Addin-in is not blocked
+- The add-in is not blocked
 
 ## #VALUE! returned
 
