@@ -159,17 +159,18 @@ static int split_params(
     XLOPER12 **stmt_params,
     size_t *n_stmt_params,
     bool deep,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
     if (!stmt_params || !data_ranges || !n_stmt_params || !n_data_ranges)
         return 0;
     *data_ranges = *stmt_params = NULL;
     *n_data_ranges = *n_stmt_params = 0;
 
-    LPXLOPER12 src[PARAM_COUNT] = { PARAMS_LIST_SEP(PARAMX) };
+    LPXLOPER12 src[] = { PARAM_LIST };
+    size_t max_param = sizeof(src) / sizeof(src[0]);
 
     size_t nrange_tmp = 0;
-    for (size_t i=0; i < PARAM_COUNT; i++)
+    for (size_t i=0; i < max_param; i++)
     {
         LPXLOPER12 param = src[i];
         if (!param) return 0;       // reject NULL
@@ -180,7 +181,7 @@ static int split_params(
     }
 
     size_t total = 0;
-    for (size_t i=nrange_tmp; i < PARAM_COUNT; i++)
+    for (size_t i=nrange_tmp; i < max_param; i++)
     {
         LPXLOPER12 param = src[i];
         if (!param) return 0;       // reject NULL
@@ -512,7 +513,7 @@ static void exec_async_base(
     LPXLOPER12 asyncHandle,
     const wchar_t *stmt,
     bool prepare_mode,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
 
     if (!asyncHandle || !stmt) return;
@@ -542,7 +543,7 @@ static void exec_async_base(
         &params,
         &nparam,
         true, //deep
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     ) == 0) {
         asynCtx->err_msg = ERR_MSG_PARAM_PARSING;
         goto fire_thread;
@@ -587,7 +588,7 @@ fire_thread:
 static LPXLOPER12 exec_base(
     const wchar_t *stmt,
     bool prepare_mode,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
 
     XLOPER12 *params = NULL;
@@ -600,7 +601,7 @@ static LPXLOPER12 exec_base(
         &params,
         &nparam,
         false, //shallow
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     ) == 0)
         return make_string_cell(ERR_MSG_PARAM_PARSING);
 
@@ -627,48 +628,48 @@ unsigned short WINAPI set_sample_size(unsigned short nsample)
 
 LPXLOPER12 WINAPI exec(
     const wchar_t *stmt,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
     return exec_base(
         stmt,
         true,
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     );
 }
 
 void WINAPI exec_async(
     LPXLOPER12 asyncHandle,
     const wchar_t *stmt,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
     exec_async_base(
         asyncHandle,
         stmt,
         true,
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     );
 }
 
 LPXLOPER12 WINAPI query(
     const wchar_t *stmt,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
     return exec_base(
         stmt,
         false,
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     );
 }
 
 void WINAPI query_async(
     LPXLOPER12 asyncHandle,
     const wchar_t *stmt,
-    PARAMS_LIST_SEP(PARAM_AND_TYPE)
+    PARAM_AND_TYPE_LIST
 ) {
     exec_async_base(
         asyncHandle,
         stmt,
         false,
-        PARAMS_LIST_SEP(PARAMX)
+        PARAM_LIST
     );
 }
