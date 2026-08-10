@@ -1,4 +1,4 @@
-# DuckDB Excel Add-in (XLL)
+# DuckDBExcelAddin
 
 A native Microsoft Excel XLL add-in that enables running SQL directly against Excel ranges using DuckDB.
 
@@ -22,6 +22,12 @@ The add-in provides:
 > - Dynamic Array support
 > - DuckDB 1.5+
 > - MinGW-w64 (w64devkit)
+
+---
+
+# Screenshot
+
+docs/screenshot.jpg
 
 ---
 
@@ -57,12 +63,29 @@ This project was inspired by **xlduckdb**, which demonstrated integration betwee
 
 The design goals of this project are slightly different.
 
+# Comparison with xlduckdb
+
+| Feature | DuckDBExcelAddin | xlduckdb |
+|----------|----------|----------|
+| Native Excel formula experience | ✅ | ✅ |
+| Dynamic array (spill) results | ✅ | ✅ |
+| Query external files | ✅ | ✅ |
+| Query Excel ranges | ✅ | ✅ |
+| Bind Excel values to prepared statements | ✅ | ❌ |
+| Async execution | ✅ | ❓ |
+| Runtime sampling configuration | ✅ | ❌ |
+| Runtime DuckDB DLL upgrade | ✅ | ❓ |
+| XLL implementation | ✅ | ✅ |
+| .NET free | ✅ | ❌ |
+
+*Comparison based on publicly documented features available at the time of writing.*
+
 ## Parameter Binding
 
 Supports DuckDB prepared statements and positional placeholders.
 
 ```excel
-=DUCKDB.EXEC(
+=DUCKDB.EXEC.ASYNC(
 "SELECT *
  FROM xlrange(1)
  WHERE cif = ?",
@@ -256,8 +279,7 @@ Older Excel versions without Dynamic Arrays are not supported.
 
 Development and testing are performed primarily using:
 
-- MinGW-w64
-- w64devkit
+- MinGW-w64 (w64devkit)
 
 Other toolchains such as Visual Studio (MSVC) may work but are currently unverified.
 
@@ -267,7 +289,7 @@ Contributions and testing reports are welcome.
 
 # Build Notes
 
-## XLCALL.H Compatibility
+## XLCALL.H, FRAMEWRK.C Compatibility
 
 Some versions of `XLCALL.H` contain a struct member named:
 
@@ -291,7 +313,7 @@ rename to:
 xbool
 ```
 
-and update the corresponding references.
+and update the corresponding references in FRAMEWRK.C.
 
 This modification only affects local compilation and does not affect runtime behavior.
 
@@ -306,14 +328,17 @@ When building with MinGW-w64 or w64devkit, unresolved external references may oc
 A simple workaround is providing stub implementations:
 
 ```c
-int PASCAL Excel4(int xlfn, LPXLOPER pxRes, int count, ...)
+#include <windows.h>
+#include "XLCALL.H"
+
+int _cdecl Excel4(int xlfn, LPXLOPER operRes, int count,... )
 {
-    return 0;
+   return xlretFailed;
 }
 
-int PASCAL Excel4v(int xlfn, LPXLOPER pxRes, int count, LPXLOPER opers[])
+int pascal Excel4v(int xlfn, LPXLOPER operRes, int count, LPXLOPER opers[])
 {
-    return 0;
+   return xlretFailed;
 }
 ```
 
@@ -354,7 +379,8 @@ Executes one or more SQL statements using prepared statements.
 - DML
 - Queries
 - Excel ranges via `xlrange()`
-- PIVOT without dynamic pivot value
+- Static PIVOT statements
+- PIVOT statements that do not require DuckDB dynamic pivot-value discovery
 
 ### Syntax
 
@@ -592,6 +618,7 @@ Excel limits apply:
 | Rows | 1,048,576 |
 | Columns | 16,384 |
 | String length | 32,767 |
+| Number types | int32, double |
 
 Queries exceeding these limits are not supported.
 
@@ -639,37 +666,57 @@ This add-in is optimized for:
 
 It is not intended to replace dedicated database systems or data engineering pipelines.
 
----
+## DuckDB Composite Types
 
-# Architecture
+Excel cells can only represent a limited set of scalar values.
+
+DuckDB composite types such as:
+
+- LIST
+- STRUCT
+- MAP
+- UNION
+
+are currently **not returned directly to Excel**.
+
+Attempting to return these types may result in:
 
 ```text
-Excel
-  |
-  v
-XLL Worksheet Function
-  |
-  +---- EXEC
-  |       |
-  |       +-- Extract statements
-  |       +-- Prepare
-  |       +-- Bind
-  |       +-- Execute
-  |
-  +---- QUERY
-  |       |
-  |       +-- Direct DuckDB Query
-  |
-  +---- xlrange()
-  |
-  +---- Async Worker
-  |
-  v
-DuckDB
-  |
-  v
-Excel Dynamic Array
+#VALUE!
 ```
+
+Workaround:
+
+```sql
+SELECT CAST(my_struct AS VARCHAR)
+
+---
+
+# Troubleshooting
+
+## Add-in fails to load
+
+Verify:
+
+- Excel is 64-bit
+- duckdb.dll is 64-bit
+- duckdb.dll is located next to DuckDBExcelAddIn.xll
+- Addin-in is not blocked
+
+## #VALUE! returned
+
+Verify:
+
+- SQL syntax is valid
+- Dynamic Arrays are supported
+- Result size does not exceed Excel limits
+
+## #SPILL! error
+
+Verify:
+
+- The destination spill range is empty.
+- There are enough rows and columns available to display the result.
 
 ---
 
@@ -677,7 +724,7 @@ Excel Dynamic Array
 
 DuckDB has fundamentally changed what is possible for local and offline analytics.
 
-Many analytical tasks that previously required:
+Many analytical tasks previously required:
 
 - Database servers
 - Complex ETL pipelines
@@ -686,13 +733,13 @@ Many analytical tasks that previously required:
 - Notebooks
 - Specialized BI tools
 
-that is complex to setup and unfamilier to office users, managers.
+These tools can be difficult to deploy and are often unfamiliar to many office users and managers.
 
-These task can now be performed locally using a single embedded analytical database.
+These tasks can now be performed locally using a single embedded analytical database.
 
 One of the goals of this project is to bring that capability closer to everyday Excel users.
 
-Excel remains one of the most widely used analytical tools, especially among finance, accounting, auditing, operations, risk management, and business users. However, many analytical workloads have outgrown what traditional Excel formulas, PivotTables, PowerQuery and worksheets can efficiently handle.
+Excel remains one of the most widely used analytical tools, especially among finance, accounting, auditing, operations, risk management, and business users. However, many analytical workloads have outgrown what traditional Excel formulas, PivotTables, Power Query and worksheets can efficiently handle.
 
 By combining Excel with DuckDB, users can:
 
@@ -720,10 +767,17 @@ DuckDB is an extraordinary project that brings tremendous value to local and off
 
 This project would not exist without the work of the DuckDB community.
 
-Special thanks to xlduckdb that I have used in real life and inspired me about formula intergation path and xlrange mechanism.
+Special thanks to xlduckdb, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
 
-Addition thanks to:
+Additional thanks to:
 
 - Microsoft Excel XLL SDK
 
 Parts of this documentation were drafted with AI assistance and reviewed manually.
+
+
+---
+
+# License
+
+MIT License
