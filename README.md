@@ -27,7 +27,7 @@ The add-in provides:
 
 # Screenshot
 
-docs/screenshot.jpg
+![Screenshot](docs/screenshot.jpg "Screenshot")
 
 ---
 
