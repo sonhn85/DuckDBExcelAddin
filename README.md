@@ -200,8 +200,9 @@ FROM xlrange(?)
 
 with configurable schema inference:
 
-```excel
-=DUCKDB.SETSAMPLE(50)
+```sql
+SELECT *
+FROM xlrange(?, sample=100)
 ```
 
 ---
@@ -489,12 +490,6 @@ DuckDB version: v1.5.4
 - The add-in version is supplied at build time through the `ADDIN_VERSION` build variable.
 - Development builds display `dev` when no version is specified.
 - The DuckDB version is obtained from the loaded `duckdb.dll`.
-- The sample size corresponds to the current value configured through:
-
-```excel
-=DUCKDB.SETSAMPLE(...)
-```
-
 - This function can be used to verify that a DuckDB DLL upgrade has been loaded successfully.
 
 ---
@@ -573,12 +568,6 @@ Default sample count:
 
 ```text
 30 rows
-```
-
-Configured globally using:
-
-```excel
-=DUCKDB.SETSAMPLE(...)
 ```
 
 ---
