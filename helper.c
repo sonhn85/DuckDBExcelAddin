@@ -1,109 +1,126 @@
 #include "helper.h"
 
-#include <stdlib.h>     // malloc, free
-#include <wctype.h>     // iswspace
+#include <stdlib.h>
+#include <wctype.h>
 #include <wchar.h>
-
-#define XLSTR_MAX_LEN           0x7fff
-#define XLTYPEMASK              0x0fff
 
 void show_error(HWND hwnd, const wchar_t *msg)
 {
     MessageBoxW(hwnd, msg, L"Error", MB_OK | MB_ICONERROR);
 }
 
-int xlstr_2_utf8(char **dest, const wchar_t *src, size_t *n)
+int xlstr_to_utf8(char **dest, const wchar_t *src, size_t *n)
 {
     if (!dest) return 0;
-    *dest = NULL;
-    if (n) *n = 0;
 
-    // null string
+    *dest = NULL;
+
+    if (n)
+        *n = 0;
+
+    // NULL Excel string
     if (!src) return 1;
 
-    char *result;
+    char *utf8;
 
-    // length is expected to max at 0x7fff
-    int nwchar = (unsigned short)src[0];
+    /* Excel strings are length-prefixed:
+       src[0] contains the character count (max 32767). */
+    int wchar_count = (unsigned short)src[0];
 
-    // empty string
-    if (nwchar == 0)
+    // Empty string
+    if (wchar_count == 0)
     {
-        result = malloc(1);
-        if (!result) return 0;
-        result[0] = '\0';
-        *dest = result;
+        utf8 = malloc(1);
+
+        if (!utf8) return 0;
+
+        utf8[0] = '\0';
+
+        *dest = utf8;
+
         return 1;
     }
 
     const wchar_t *start = src + 1;
 
-    int buff_size = WideCharToMultiByte(
+    int utf8_size = WideCharToMultiByte(
         CP_UTF8,
         WC_ERR_INVALID_CHARS,
         start,
-        nwchar,
+        wchar_count,
         NULL,
         0,
         NULL,
         NULL
     );
-    if (buff_size == 0) return 0;
 
-    result = malloc((size_t)buff_size + 1);
-    if (!result) return 0;
+    if (utf8_size == 0)
+        return 0;
 
-    int written = WideCharToMultiByte(
+    utf8 = malloc((size_t)utf8_size + 1);
+
+    if (!utf8)
+        return 0;
+
+    int chars_written = WideCharToMultiByte(
         CP_UTF8,
         WC_ERR_INVALID_CHARS,
         start,
-        nwchar,
-        result,
-        buff_size,
+        wchar_count,
+        utf8,
+        utf8_size,
         NULL,
         NULL
     );
-    if (written == 0)
+
+    if (chars_written == 0)
     {
-        free(result);
+        free(utf8);
         return 0;
     }
 
-    // output is 0 terminated
-    result[written] = '\0';
-    if (n) *n = written;
+    // Return a null-terminated UTF-8 string
+    utf8[chars_written] = '\0';
 
-    *dest = result;
+    if (n) *n = chars_written;
+
+    *dest = utf8;
 
     return 1;
 }
 
-int utf8_2_xlstr(wchar_t **dest, const char *src, int n)
+int utf8_to_xlstr(wchar_t **dest, const char *src, int n)
 {
 
     if (!dest) return 0;
+
     *dest = NULL;
 
     if (n < -1) return 0;
 
     if (!src) return 1;
 
-    wchar_t *result;
+    wchar_t *xlstr;
 
-    // empty string
+    // Empty Excel string
     if (n == 0)
     {
-        // allocate 2 for safety
-        result = malloc(2*sizeof(*result));
-        if (!result) return 0;
-        // write length
-        result[0] = 0;
-        result[1] = L'\0';
-        *dest = result;
+        // One wchar for length prefix, one for trailing L'\0'
+        xlstr = malloc(2 * sizeof(*xlstr));
+
+        if (!xlstr)
+            return 0;
+
+        // Excel strings are length-prefixed
+        xlstr[0] = 0;
+        xlstr[1] = L'\0';
+
+        *dest = xlstr;
+
         return 1;
     }
 
-    int nwchar = MultiByteToWideChar(
+    int wchar_count = MultiByteToWideChar(
         CP_UTF8,
         MB_ERR_INVALID_CHARS,
         src,
@@ -111,51 +128,60 @@ int utf8_2_xlstr(wchar_t **dest, const char *src, int n)
         NULL,
         0
     );
-    if (nwchar == 0) return 0;
 
-    // check for string length
-    int char_only_len = (n == -1) ? nwchar - 1 : nwchar;
-    if (char_only_len > XLSTR_MAX_LEN) return 0;
+    if (wchar_count == 0)
+        return 0;
 
-    // add one for length prefix
-    result = malloc(((size_t)nwchar+1)*sizeof(*result));
-    if (!result) return 0;
+    // Excel strings are limited to XLSTR_MAX_LEN characters
+    int char_only_len = (n == -1) ? wchar_count - 1 : wchar_count;
 
-    int written = MultiByteToWideChar(
+    if (char_only_len > XLSTR_MAX_LEN)
+        return 0;
+
+    // Allocate space for UTF-16 characters plus Excel length prefix
+    xlstr = malloc(((size_t)wchar_count + 1) * sizeof(*xlstr));
+
+    if (!xlstr)
+        return 0;
+
+    int chars_written = MultiByteToWideChar(
         CP_UTF8,
         MB_ERR_INVALID_CHARS,
         src,
         n,
-        result+1,
-        nwchar
+        xlstr+1,
+        wchar_count
     );
-    if (written == 0)
+
+    if (chars_written == 0)
     {
-        free(result);
+        free(xlstr);
         return 0;
     }
 
-    // if 0 terminated string, dont count 0
-    if (n == -1) --written;
+    // Exclude terminating L'\0' from Excel string length
+    if (n == -1) --chars_written;
 
-    // write length prefix
-    result[0] = (unsigned short)written;
+    // Store Excel length prefix
+    xlstr[0] = (unsigned short)chars_written;
 
-    *dest = result;
+    *dest = xlstr;
+
     return 1;
 }
 
 LPXLOPER12 make_string_cell(const char *utf8str)
 {
-
     if (!utf8str) return NULL;
 
     wchar_t *xlstr = NULL;
-    if (utf8_2_xlstr(&xlstr, utf8str, -1) == 0 || !xlstr)
+
+    if (utf8_to_xlstr(&xlstr, utf8str, -1) == 0 || !xlstr)
     {
         free(xlstr);
         return NULL;
     }
+
     LPXLOPER12 result = malloc(sizeof(*result));
 
     if (!result)
@@ -164,6 +190,7 @@ LPXLOPER12 make_string_cell(const char *utf8str)
         return NULL;
     }
 
+    // Transfer string ownership to Excel via xlbitDLLFree
     result->xltype = xltypeStr | xlbitDLLFree; 
     result->val.str = xlstr;
 
@@ -175,11 +202,11 @@ int is_null_or_whitespace_xlstr(const wchar_t *xlstr)
 
     if (!xlstr) return 1;
     
+    // Excel strings are length-prefixed
     size_t n = (unsigned short)xlstr[0];
 
     for (size_t i = 1; i <= n; i++)
     {
-        // If any character is not whitespace, return false
         if (!iswspace((wint_t)xlstr[i]))
             return 0;
     }
@@ -187,44 +214,48 @@ int is_null_or_whitespace_xlstr(const wchar_t *xlstr)
     return 1;
 }
 
-void xloper12_member_deep_free(LPXLOPER12 pxFree)
+void xloper12_free_members(LPXLOPER12 pxFree)
 {
     if (!pxFree) return;
 
-    switch (pxFree->xltype & XLTYPEMASK)
+    switch (LPXLOPER12_TYPE(pxFree))
     {
         case xltypeMulti:
-            // only free if xlbitDLLFree is set
-            if (pxFree->xltype & xlbitDLLFree) {
-                LPXLOPER12 p = pxFree->val.array.lparray;
-                if (p)
+            // Only free memory allocated by this add-in
+            if (LPXLOPER12_DLL_FREE(pxFree))
+            {
+                LPXLOPER12 cells = pxFree->val.array.lparray;
+
+                if (cells)
                 {
-                    // won't overflow
+                    // Total element count. Excel limits prevent overflow here
                     size_t n = (size_t)pxFree->val.array.rows *(size_t)pxFree->val.array.columns;
                     for (size_t i=0; i < n; i++)
                     {
-                        // recursively free members with xltypeStr, xltypeMulti
-                        // try to reduce function call for simple type
-                        switch (p[i].xltype & XLTYPEMASK)
+                        /* Recursively free nested strings and arrays
+                           Primitive values do not own heap memory */
+                        switch (XLOPER12_TYPE(cells[i]))
                         {
                             case xltypeStr:
                             case xltypeMulti:
-                                xloper12_member_deep_free(&p[i]);
+                                xloper12_free_members(&cells[i]);
                                 break;
+
                             default:
                                 break;
                         }
                     }
                 }
-                // free array itself
+                // Free array storage after all elements are released
                 free(pxFree->val.array.lparray);
             }
             break;
 
         case xltypeStr:
-            // only free if xlbitDLLFree is set
-            if (pxFree->xltype & xlbitDLLFree)
+            // Only free memory allocated by this add-in
+            if (LPXLOPER12_DLL_FREE(pxFree))
                 free(pxFree->val.str);
+
             break;
 
         default:
@@ -232,106 +263,149 @@ void xloper12_member_deep_free(LPXLOPER12 pxFree)
     }
 }
 
-void free_xloper12(LPXLOPER12 pxFree)
+void xloper12_free(LPXLOPER12 pxFree)
 {
-    if (!pxFree) return;
-    xloper12_member_deep_free(pxFree);
+    if (!pxFree)
+        return;
+
+    xloper12_free_members(pxFree);
+
     free(pxFree);
 }
 
-void free_xloper12_array(LPXLOPER12 lparray, size_t n)
+void xloper12_free_array(LPXLOPER12 lparray, size_t n)
 {
-    if (!lparray) return;
-    for (size_t i = 0; i < n; ++i) {
-        xloper12_member_deep_free(&lparray[i]);
+    if (!lparray)
+        return;
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        xloper12_free_members(&lparray[i]);
     }
+
     free(lparray);
 }
 
 int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
 {
     if (dst == src) return 1;
+
     if (!dst || !src) return 0;
 
-    XLOPER12 temp = {0};    // fill with safe default value
+    XLOPER12 dst_tmp = {0};    // Safe default value for rollback
 
-    // make shallow copy first
-    temp = *src;
-    // remove xlbitDLLFree, only add when succeed
-    temp.xltype &= ~xlbitDLLFree;
+    // Start with a shallow copy of the source value
+    dst_tmp = *src;
 
-    switch (src->xltype & XLTYPEMASK) 
+    // Clear ownership flag and restore it only after deep-copy succeeds
+    dst_tmp.xltype &= ~xlbitDLLFree;
+
+    switch (LPXLOPER12_TYPE(src)) 
     {
         case xltypeStr:
         {
-            // copy string
             wchar_t *ws_src = src->val.str;
-            if (!ws_src) break;                 // NULL is accept
-            size_t nwchar = (unsigned short)ws_src[0]; 
-            wchar_t *ws = malloc((nwchar + 1)*sizeof(*ws));
-            if (!ws) return 0;
-            wmemcpy(ws, ws_src, (nwchar + 1));
-            temp.val.str = ws;
-            temp.xltype |= xlbitDLLFree;    // mark xlbitDLLFree when succeed
+
+            // NULL string is allowed
+            if (!ws_src)
+                break;
+
+            // Excel strings are length-prefixed
+            size_t wchar_count = (unsigned short)ws_src[0]; 
+
+            wchar_t *ws_cpy = malloc((wchar_count + 1) * sizeof(*ws_cpy));
+
+            if (!ws_cpy)
+                return 0;
+
+            wmemcpy(ws_cpy, ws_src, (wchar_count + 1));
+
+            // Ownership transfers to the copied XLOPER12
+            dst_tmp.xltype |= xlbitDLLFree;
+            dst_tmp.val.str = ws_cpy;
+
             break;
         }
+
         case xltypeMulti:
         {
-            // copy lparray
-            // excel max number of cell won't overflow size_t
+            // Total element count. Excel limits prevent overflow here
             size_t n = (size_t)src->val.array.rows * (size_t)src->val.array.columns;
+
             if (n == 0)
             {
-                temp.val.array.lparray = NULL;
+                dst_tmp.val.array.lparray = NULL;
                 break;
             }
-            LPXLOPER12 src_arr = src->val.array.lparray;
-            if (!src_arr) return 0;    // n > 0
-            LPXLOPER12 arr = calloc(n, sizeof(*arr));   // fill with safe default value
-            if (!arr) return 0;
+
+            LPXLOPER12 src_cells = src->val.array.lparray;
+
+            // Non-empty array requires a valid backing store
+            if (!src_cells)
+                return 0;
+
+            // Initialize elements to safe defaults for rollback
+            LPXLOPER12 dst_cells = calloc(n, sizeof(*dst_cells));
+
+            if (!dst_cells)
+                return 0;
+
             for (size_t i=0; i < n; i++)
             {
-                // recursively copy members with xltypeStr, xltypeMulti
-                // for simple type, shallow copy is enough
-                switch (src_arr[i].xltype & XLTYPEMASK)
+                /* Deep-copy nested strings and arrays.
+                   Primitive types do not own heap memory */
+                switch (XLOPER12_TYPE(src_cells[i]))
                 {
                     case xltypeStr:
                     case xltypeMulti:
-                        if (xloper12_deep_copy(&arr[i], &src_arr[i]) == 0)
+                        if (xloper12_deep_copy(&dst_cells[i], &src_cells[i]) == 0)
                         {
-                            // recursively rollback
-                            free_xloper12_array(arr, i);
+                            // Release already-copied elements before returning failure
+                            xloper12_free_array(dst_cells, i);
                             return 0;
                         }
                         break;
+
                     case xltypeBool:
                     case xltypeInt:
                     case xltypeNum:
                     case xltypeMissing:
                     case xltypeNil:
                     case xltypeErr:
-                        arr[i] = src_arr[i];
-                        arr[i].xltype &= ~xlbitDLLFree; // for simple type, remove xlbitDLLFree
+                        // Shallow copy is sufficient
+                        dst_cells[i] = src_cells[i];
+                        dst_cells[i].xltype &= ~xlbitDLLFree;
                         break;
+
                     default:
-                        free_xloper12_array(arr, i); //unimplement, rollback
+                        // Unsupported type. Roll back and fail
+                        xloper12_free_array(dst_cells, i);
                         return 0;
                 }
             }
-            temp.val.array.lparray = arr;
-            temp.xltype |= xlbitDLLFree;    // mark xlbitDLLFree when succeed
+
+            // Ownership transfers to the copied XLOPER12
+            dst_tmp.xltype |= xlbitDLLFree;
+            dst_tmp.val.array.lparray = dst_cells;
+
             break;
         }
+
         case xltypeBool:
         case xltypeInt:
         case xltypeNum:
         case xltypeMissing:
         case xltypeNil:
         case xltypeErr:
-            break;      // shallow copy is enough
+            // Primitive types are fully copied by the initial shallow copy
+            break;
+
         default:
-            return 0;  // unimplement
+            // Unsupported XLOPER12 type
+            return 0; 
     }
-    *dst = temp;
+
+    *dst = dst_tmp;
+
     return 1;
 }
