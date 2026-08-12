@@ -453,54 +453,6 @@ Asynchronous version of `DUCKDB.QUERY`.
 =DUCKDB.QUERY.ASYNC(sql, ...)
 ```
 
-## DUCKDB.SETSAMPLE
-
-Sets the global sample size used for `xlrange()` schema inference.
-
-### Syntax
-
-```excel
-=DUCKDB.SETSAMPLE(nsample)
-```
-
-### Examples
-
-```excel
-=DUCKDB.SETSAMPLE(1)
-```
-
-Infer types using a single sampled row.
-
-```excel
-=DUCKDB.SETSAMPLE(30)
-```
-
-Use the default setting.
-
-```excel
-=DUCKDB.SETSAMPLE(100)
-```
-
-Inspect up to 100 sampled rows.
-
-```excel
-=DUCKDB.SETSAMPLE(0)
-```
-
-Inspect all available rows.
-
-### Special Value
-
-```excel
-=DUCKDB.SETSAMPLE(0)
-```
-
-Disables sampling and scans all available data rows during schema inference.
-
-### Return Value
-
-Returns the currently configured sample size.
-
 ## DUCKDB.INFO
 
 Returns diagnostic information about the add-in and the currently loaded DuckDB runtime.
@@ -587,18 +539,37 @@ F1:H100,
 - Ranges must appear before scalar parameters.
 - Range numbering starts at 1.
 
----
-
-# Type Inference
+### Type Inference Sampling
 
 Supported inferred DuckDB types:
+
+Column types are inferred by sampling worksheet rows.
 
 | Excel Value | DuckDB Type |
 |------------|-------------|
 | Number | DOUBLE |
 | Boolean | BOOLEAN |
 | Text | VARCHAR |
-| Empty/Null/Error | Ignored during inference |
+| Empty/Null | Ignored during inference |
+
+The optional named parameter `sample` controls the number of rows used during type inference.
+
+```sql
+SELECT *
+FROM xlrange(1, sample = 100)
+```
+
+Rules:
+
+- Larger values may improve inference accuracy for mixed-type columns.
+- Smaller values may reduce initialization overhead for large ranges.
+- The default sample size is `30`.
+
+---
+
+# Type Inference
+
+
 
 Default sample count:
 
