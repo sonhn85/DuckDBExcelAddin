@@ -475,7 +475,6 @@ This function is useful for:
 ```text
 Add-in version: x.x.x
 DuckDB version: x.x.x
-Sample size: 30
 ```
 
 ### Development Build Example
@@ -483,7 +482,6 @@ Sample size: 30
 ```text
 Add-in version: dev
 DuckDB version: v1.5.4
-Sample size: 30
 ```
 
 ### Notes
