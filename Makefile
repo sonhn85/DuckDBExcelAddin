@@ -11,6 +11,8 @@ ADDIN_VERSION := dev
 
 CFLAGS = -DADDIN_VERSION=\"$(ADDIN_VERSION)\"
 
+.DEFAULT_GOAL := help
+
 memorypool.o:
 	g++ -O2 -c -o $@ -I$(FRAMEWRK_INC_PATH) $(FRAMEWRK_SRC_PATH)/memorypool.cpp
 
@@ -41,8 +43,23 @@ DuckDBExcelAddin.o: DuckDBExcelAddin.c DuckDBExcelAddin.h helper.h db_lib_loader
 DuckDBExcelAddin.xll: memorypool.o memorymanager.o framewrk.o excel4workaround.o helper.o db_lib_loader.o db_xlrange.o db_fetch.o DuckDBExcelAddin.o
 	gcc -shared -o $@ $^ -lpathcch -lstdc++
 
-all: DuckDBExcelAddin.xll
+xll: DuckDBExcelAddin.xll
 
 clean:
 	rm -f *.o
 	rm -f *.xll
+
+help:
+	@echo "DuckDB Excel Add-in Build"
+	@echo ""
+	@echo "Targets:"
+	@echo "  xll     Build DuckDBExcelAddin.xll"
+	@echo "  clean   Remove generated files"
+	@echo "  help    Show this help message"
+	@echo ""
+	@echo "Configuration:"
+	@echo "  ADDIN_VERSION (default to dev)"
+	@echo "  DUCKDB_INC_PATH"
+	@echo "  EXCEL_SDK_PATH"
+
+.PHONY: help xll clean
