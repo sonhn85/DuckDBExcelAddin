@@ -2,7 +2,9 @@
 #define CONFIG_H
 
 /* Versioning */
+#ifndef ADDIN_VERSION
 #define ADDIN_VERSION               "dev"
+#endif
 #define DUCKDB_REQUIRED_VERSION     "1.5.0"
 
 /* DuckDB */
