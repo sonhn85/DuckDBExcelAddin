@@ -1,6 +1,6 @@
-#include <stdlib.h>     // malloc, calloc, free
-#include <stdint.h>     // uint8_t, uint64_t
-#include <math.h>       // isfinite
+#include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,14 +8,14 @@
 #include "db_fetch.h"
 #include "db_lib_loader.h"
 #include "helper.h"
+#include "config.h"
 
-#define ERR_MSG_MAX_LEN         512
-#define ERR_MSG_INTERNAL        "An internal error occurred"
-#define ERR_MSG_ALLOC           "Memory allocation failed"
-#define ERR_MSG_COL_NAME        "Invalid column name"
-#define ERR_MSG_NO_DATA         "Statement returned no data"
-#define ERR_MSG_LIMIT           "Excel row or column limit exceeded"
-#define ERR_MSG_UNSUPPORTED_TYPE "Unsupported DuckDB type. Convert the value to VARCHAR before returning it to Excel"
+#define ERR_MSG_INTERNAL            "An internal error occurred"
+#define ERR_MSG_ALLOC               "Memory allocation failed"
+#define ERR_MSG_INVALID_COL_NAME    "Invalid column name"
+#define ERR_MSG_NO_DATA             "Statement returned no data"
+#define ERR_MSG_EXCEED_SIZE_LIMIT   "Excel row or column limit exceeded"
+#define ERR_MSG_UNSUPPORTED_TYPE    "Unsupported DuckDB type. Convert the value to VARCHAR before returning it to Excel"
 
 // duckdb max decimal scale is 18 
 static const double DEC_DIVISORS[] = {
@@ -29,14 +29,14 @@ static const double DEC_DIVISORS[] = {
 #define NS_PER_DAY  86400000000000.0        // nanoseconds per day
 #define EPOCH_DELTA 25569.0                 // in days between excel and duckdb epoch
 #define TIMETZ_OFFSET_BITS      24
-#define XL_MAX_ROW              0x00100000
-#define XL_MAX_COL              0x4000
 
 void free_and_reset_chunk_list(chunk_list *chunklist)
 {
-    if (!chunklist) return;
+    if (!chunklist)
+        return;
 
     chunk_node *node = chunklist->head;
+
     while (node)
     {
         chunk_node *next = node->next;
@@ -47,55 +47,96 @@ void free_and_reset_chunk_list(chunk_list *chunklist)
         node = next;
     }
 
-    free(chunklist->col_names); // actual string will be freed by duckdb_destroy_result
+    free(chunklist->col_names);
     free(chunklist->col_types);
     free(chunklist->base_types);
     free(chunklist->dec_scales);
 
-    // reset
     *chunklist = (chunk_list){0};
 }
 
-static void format_err_msg(char *buf, size_t buf_size, const char *action, const char *colname, const char *msg)
+static void format_error_message(
+    char *buf,
+    size_t buf_size,
+    const char *action,
+    const char *colname,
+    const char *msg
+)
 {
-    if (!buf || buf_size == 0) return;
-    if (colname) {
+    if (!buf || buf_size == 0 || !action || !msg)
+        return;
+
+    if (colname)
+    {
         snprintf(
             buf,
             buf_size,
             "Error %s: Column %s: %s",
-            action ? action : "fetching data",
+            action,
             colname,
-            msg ? msg : ERR_MSG_INTERNAL
+            msg
         );
-    } else {
+    }
+    else
+    {
         snprintf(
             buf,
             buf_size,
             "Error %s: %s",
-            action ? action : "fetching data",
-            msg ? msg : ERR_MSG_INTERNAL
+            action,
+            msg
         );
     }
 }
 
-int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, size_t buf_size)
+int fetch_chunks(
+    duckdb_result *result,
+    chunk_list *chunklist,
+    char *errmsg,
+    size_t buf_size
+)
 {
-    if (!errmsg || buf_size == 0) goto fail;
-    if (!chunklist || !pqresult)
+    if (!errmsg || buf_size == 0)
+        goto fail;
+
+    errmsg[0] = '\0';
+
+    if (!chunklist || !result)
     {
-        format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_INTERNAL);
+        format_error_message(
+            errmsg,
+            buf_size,
+            "fetching data",
+            NULL,
+            ERR_MSG_INTERNAL
+        );
         goto fail;
     }
 
     free_and_reset_chunk_list(chunklist);
 
-    idx_t ncols = DUCKDB_COLUMN_COUNT(pqresult);
-    if (ncols == 0) {
-        format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_NO_DATA);
+    idx_t ncols = DUCKDB_COLUMN_COUNT(result);
+
+    if (ncols == 0)
+    {
+        format_error_message(
+            errmsg,
+            buf_size,
+            "fetching data",
+            NULL,
+            ERR_MSG_NO_DATA
+        );
         goto fail;
-    } else if (ncols > XL_MAX_COL) {
-        format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_LIMIT);
+    }
+    else if (ncols > XL_MAX_COL)
+    {
+        format_error_message(
+            errmsg,
+            buf_size,
+            "fetching data",
+            NULL,
+            ERR_MSG_EXCEED_SIZE_LIMIT
+        );
         goto fail;
     }
 
@@ -110,7 +151,14 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
         free(col_types);
         free(base_types);
         free(dec_scales);
-        format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_ALLOC);
+
+        format_error_message(
+            errmsg,
+            buf_size,
+            "fetching data",
+            NULL,
+            ERR_MSG_ALLOC
+        );
         goto fail;
     }
 
@@ -122,29 +170,52 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
 
     for (idx_t c=0; c < ncols; c++)
     {
-        const char *col_name = DUCKDB_COLUMN_NAME(pqresult, c);
-        if (!col_name) {
-            format_err_msg(errmsg, buf_size, NULL, col_name, ERR_MSG_COL_NAME);
+        const char *col_name = DUCKDB_COLUMN_NAME(result, c);
+
+        if (!col_name)
+        {
+            format_error_message(
+                errmsg,
+                buf_size,
+                "fetching data",
+                NULL,
+                ERR_MSG_INVALID_COL_NAME
+            );
             goto fail;
         }
-        col_names[c] = col_name;
-        duckdb_type t = DUCKDB_COLUMN_TYPE(pqresult, c);
-        col_types[c] = base_types[c] = t;
 
-        switch (t)
+        col_names[c] = col_name;
+
+        duckdb_type type = DUCKDB_COLUMN_TYPE(result, c);
+
+        col_types[c] = base_types[c] = type;
+
+        switch (type)
         {
             case DUCKDB_TYPE_DECIMAL:
             {
-                duckdb_logical_type lt = DUCKDB_COLUMN_LOGICAL_TYPE(pqresult, c);
+                duckdb_logical_type lt = DUCKDB_COLUMN_LOGICAL_TYPE(result, c);
+
                 if (!lt) {
-                    format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_INTERNAL);
+                    format_error_message(
+                        errmsg,
+                        buf_size,
+                        "fetching data",
+                        NULL,
+                        ERR_MSG_INTERNAL
+                    );
                     goto fail;  
                 }
+
                 base_types[c] = DUCKDB_DECIMAL_INTERNAL_TYPE(lt);
+
                 dec_scales[c] = DUCKDB_DECIMAL_SCALE(lt);
+
                 DUCKDB_DESTROY_LOGICAL_TYPE(&lt);
+
                 break;
             }
+
             case DUCKDB_TYPE_VARCHAR:
             case DUCKDB_TYPE_BOOLEAN:
             case DUCKDB_TYPE_TINYINT:
@@ -169,8 +240,15 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
             case DUCKDB_TYPE_TIMESTAMP_NS:
                 dec_scales[c] = 0;
                 break;
+            
             default:
-                format_err_msg(errmsg, buf_size, NULL, col_names[c], ERR_MSG_UNSUPPORTED_TYPE);
+                format_error_message(
+                    errmsg,
+                    buf_size,
+                    "fetching data",
+                    col_name,
+                    ERR_MSG_UNSUPPORTED_TYPE
+                );
                 goto fail;
         }
     }
@@ -180,44 +258,75 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
         chunk_node *node = NULL;
         void **vectors = NULL;
         uint64_t **valid_masks = NULL;
-        duckdb_data_chunk chunk = DUCKDB_FETCH_CHUNK(*pqresult);
+
+        duckdb_data_chunk chunk = DUCKDB_FETCH_CHUNK(*result);
 
         if (!chunk) break;
 
         idx_t nrows = DUCKDB_DATA_CHUNK_GET_SIZE(chunk);
-        idx_t row_total = chunklist->nrows + nrows;
-        if (row_total > XL_MAX_ROW - 1) {
-            format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_LIMIT);
-            goto loop_fail;
-        }
-        node = malloc(sizeof(*node));
-        if (!node)
-        {
-            format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_ALLOC);
-            goto loop_fail;
-        }
-        vectors = malloc(ncols*sizeof(*vectors));
-        valid_masks = malloc(ncols*sizeof(*valid_masks));
 
-        if (!vectors || !valid_masks)
+        idx_t row_total = chunklist->nrows + nrows;
+
+        if (row_total > XL_MAX_ROW - 1)
         {
-            format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_ALLOC);
+            format_error_message(
+                errmsg,
+                buf_size,
+                "fetching data",
+                NULL,
+                ERR_MSG_EXCEED_SIZE_LIMIT
+            );
             goto loop_fail;
         }
+
+        node = malloc(sizeof(*node));
+        vectors = malloc(ncols * sizeof(*vectors));
+        valid_masks = malloc(ncols * sizeof(*valid_masks));
+
+        if (!node || !vectors || !valid_masks)
+        {
+            format_error_message(
+                errmsg,
+                buf_size,
+                "fetching data",
+                NULL,
+                ERR_MSG_ALLOC
+            );
+            goto loop_fail;
+        }
+
         for (idx_t c=0; c < ncols; c++)
         {
-            duckdb_vector v = DUCKDB_DATA_CHUNK_GET_VECTOR(chunk, c);
-            if (!v) {
-                format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_INTERNAL);
+            duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(chunk, c);
+
+            if (!vec)
+            {
+                format_error_message(
+                    errmsg,
+                    buf_size,
+                    "fetching data",
+                    NULL,
+                    ERR_MSG_INTERNAL
+                );
                 goto loop_fail;
             }
-            void *vec = DUCKDB_VECTOR_GET_DATA(v);
-            if (!vec) {
-                format_err_msg(errmsg, buf_size, NULL, NULL, ERR_MSG_INTERNAL);
+
+            void *vec_data = DUCKDB_VECTOR_GET_DATA(vec);
+
+            if (!vec_data)
+            {
+                format_error_message(
+                    errmsg,
+                    buf_size,
+                    "fetching data",
+                    NULL,
+                    ERR_MSG_UNSUPPORTED_TYPE
+                );
                 goto loop_fail;
             }
-            vectors[c] = vec;
-            valid_masks[c] = DUCKDB_VECTOR_GET_VALIDITY(v);
+    
+            vectors[c] = vec_data;
+            valid_masks[c] = DUCKDB_VECTOR_GET_VALIDITY(vec);
         }
 
         node->nrows = nrows;
@@ -226,9 +335,12 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
         node->valid_masks = valid_masks;
         node->next = NULL;
 
-        if (!chunklist->tail){
+        if (!chunklist->tail)
+        {
             chunklist->head = chunklist->tail = node;
-        } else {
+        }
+        else
+        {
             chunklist->tail->next = node;
             chunklist->tail = node;
         }
@@ -246,20 +358,21 @@ int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, s
         goto fail;
     }
 
-    if (errmsg && buf_size > 0) errmsg[0] = '\0';
     return 1;
 
 fail:
+
     free_and_reset_chunk_list(chunklist);
+
     return 0;
 }
 
 #define TO_DUCKDB_TYPE_ENUM(X) DUCKDB_TYPE_##X
-#define TO_FUNC_NAME(X, Y) X##_2_##Y
-#define TO_DEC_FUNC_NAME(X, Y) X##_BASED_DEC_2_##Y
+#define TO_FUNC_NAME(X, Y) X##_to_##Y
+#define TO_DEC_FUNC_NAME(X, Y) X##_BASED_DEC_to_##Y
 
-#define DEF_FUNC(lib_type, vector_type, xl_type, converter_codes)                 \
-void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col)    \
+#define DEF_FUNC(lib_type, vector_type, xl_type, converter_codes)                   \
+void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
 {                                                                                   \
     idx_t ncols = chunklist->ncols;                                                 \
     for (chunk_node *node=chunklist->head; node!=NULL; node = node->next)           \
@@ -298,8 +411,8 @@ void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx
     }                                                                               \
 }
 
-#define DEF_DECIMAL_FUNC(lib_type, vector_type, xl_type, converter_codes)         \
-void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col)\
+#define DEF_DECIMAL_FUNC(lib_type, vector_type, xl_type, converter_codes)           \
+void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
 {                                                                                   \
     idx_t ncols = chunklist->ncols;                                                 \
     double dec_divisor = DEC_DIVISORS[chunklist->dec_scales[col]];                  \
@@ -382,7 +495,7 @@ void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist,
         if (!src) { \
             cell->xltype = xltypeErr; \
             cell->val.err = xlerrNA; \
-        } else if (utf8_2_xlstr(&dest, src, sz) != 0 && dest) { \
+        } else if (utf8_to_xlstr(&dest, src, sz) != 0 && dest) { \
             cell->xltype = xltypeStr | xlbitDLLFree; \
             cell->val.str = dest; \
         } else { \
@@ -497,56 +610,113 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
 {
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
-    LPXLOPER12 result = NULL;
+    LPXLOPER12 lparray = NULL;
 
-    if (!chunklist) {
-        format_err_msg(errmsg, sizeof(errmsg), "writing output", NULL, ERR_MSG_INTERNAL);
+    LPXLOPER12 range = NULL;
+
+    if (!chunklist)
+    {
+        format_error_message(
+            errmsg,
+            sizeof(errmsg),
+            "writing output",
+            NULL,
+            ERR_MSG_INTERNAL
+        );
         goto fail;
     }
 
     size_t ncols = (size_t)chunklist->ncols;
     size_t nrows = (size_t)chunklist->nrows;
 
-    result = calloc(1, sizeof(*result));
-    if (!result){
-        format_err_msg(errmsg, sizeof(errmsg), "writing output", NULL, ERR_MSG_ALLOC);
+    if (ncols > XL_MAX_COL || nrows > XL_MAX_ROW - 1)
+    {
+        format_error_message(
+            errmsg,
+            sizeof(errmsg),
+            "writing output",
+            NULL,
+            ERR_MSG_EXCEED_SIZE_LIMIT
+        );
         goto fail;
     }
-    result->xltype = xltypeMulti | xlbitDLLFree;
 
-    LPXLOPER12 lparray = calloc(ncols*(nrows + 1), sizeof(*lparray));
+    range = calloc(1, sizeof(*range));
+
+    if (!range)
+    {
+        format_error_message(
+            errmsg,
+            sizeof(errmsg),
+            "writing output",
+            NULL,
+            ERR_MSG_ALLOC
+        );
+        goto fail;
+    }
+
+    // Transfer ownership via xlbitDLLFree 
+    range->xltype = xltypeMulti | xlbitDLLFree;
+
+    lparray = calloc(ncols*(nrows + 1), sizeof(*lparray));
     if (!lparray)
     {
-        format_err_msg(errmsg, sizeof(errmsg), "writing output", NULL, ERR_MSG_ALLOC);
+        format_error_message(
+            errmsg,
+            sizeof(errmsg),
+            "writing output",
+            NULL,
+            ERR_MSG_ALLOC
+        );
         goto fail;
     }
-    result->val.array.lparray = lparray;
-    result->val.array.rows = (RW)(nrows + 1);
-    result->val.array.columns = (COL)ncols;
 
     LPXLOPER12 cell = lparray;
+
     const char **col_names = chunklist->col_names;
+
     for (size_t c=0; c < ncols; c++, cell++)
     {
         const char *col_name = col_names[c];
+
         if (!col_name)
         {
-            format_err_msg(errmsg, sizeof(errmsg), "writing output", NULL, ERR_MSG_INTERNAL);
+            format_error_message(
+                errmsg,
+                sizeof(errmsg),
+                "writing output",
+                NULL,
+                ERR_MSG_INVALID_COL_NAME
+            );
             goto rollback;
         }
-        wchar_t *s = NULL; 
-        if (utf8_2_xlstr(&s, col_name, -1) == 0 || !s)
+
+        wchar_t *xlstr = NULL; 
+
+        if (utf8_to_xlstr(&xlstr, col_name, -1) == 0 || !xlstr)
         {
-            format_err_msg(errmsg, sizeof(errmsg), "writing output", col_name, ERR_MSG_COL_NAME);
+            format_error_message(
+                errmsg,
+                sizeof(errmsg),
+                "writing output",
+                col_name,
+                ERR_MSG_INVALID_COL_NAME
+            );
             goto rollback;
         }
+
+        // Transfer ownership via xlbitDLLFree 
         cell->xltype = xltypeStr | xlbitDLLFree;
-        cell->val.str = s;
+        cell->val.str = xlstr;
+
         continue;
 
     rollback:
-        free_xloper12_array(lparray, c);
-        result->val.array.lparray = NULL;
+
+        xloper12_free_array(lparray, c);
+
+        lparray = NULL;
+
         goto fail;
     }
 
@@ -583,13 +753,20 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
         }
     }
 
-    return result;
+    range->val.array.lparray = lparray;
+    lparray = NULL;
+
+    range->val.array.rows = (RW)(nrows + 1);   // +1 for header
+    range->val.array.columns = (COL)ncols;
+
+    return range;
 
 fail:
-    if (result)
-    {
-        free(result->val.array.lparray);
-        free(result);
-    }
-    return make_string_cell(errmsg[0] ? errmsg : ERR_MSG_INTERNAL);
+
+    free(lparray);
+    xloper12_free(range);
+
+    return make_string_cell(
+        errmsg[0] ? errmsg : ERR_MSG_INTERNAL
+    );
 }
