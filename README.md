@@ -14,14 +14,11 @@ The add-in provides:
 - Lightweight deployment
 - No .NET runtime dependency
 
-> Status: Early Release / Experimental
+> Status: Beta / Early Release
 >
-> Tested with:
->
-> - Microsoft Excel 64-bit
-> - Dynamic Array support
-> - DuckDB 1.5+
-> - MinGW-w64 (w64devkit)
+> Core functionality is implemented and usable for day-to-day
+> workloads. APIs and behavior may still evolve before the first
+> stable release.
 
 ---
 
@@ -33,29 +30,21 @@ The add-in provides:
 
 # Quick Summary
 
-✅ Native Excel XLL
+✅ Query Excel ranges
 
-✅ No .NET Runtime
-
-✅ No VSTO
-
-✅ No COM Registration
-
-✅ No Office Add-in Installer
-
-✅ Two-file deployment (`.xll` + `duckdb.dll`)
-
-✅ Parameter Binding
+✅ Bind Excel values to SQL
 
 ✅ Async Execution
 
-✅ Multi-Statement SQL Execution
+✅ Native Excel XLL
+
+✅ No .NET runtime dependency
+
+✅ Two-file deployment (`.xll` + `duckdb.dll`)
 
 ✅ DuckDB 1.5+
 
-✅ Drop-in DuckDB upgrades
-
-✅ Built-in diagnostics (`DUCKDB.INFO`)
+✅ Runtime DuckDB DLL upgrade
 
 ---
 
@@ -73,26 +62,111 @@ The design goals of this project are slightly different.
 | Dynamic array (spill) results | ✅ | ✅ |
 | Query external files | ✅ | ✅ |
 | Query Excel ranges | ✅ | ✅ |
-| Bind Excel values to prepared statements | ✅ | ❌ |
+| Column type sampling option | ✅ | ❌ |
+| Bind Excel values to SQL | ✅ | ❌ |
+| Helpers for Excel date and time values | ✅ | ❌ |
 | Async execution | ✅ | ❓ |
-| Runtime sampling configuration | ✅ | ❌ |
 | Runtime DuckDB DLL upgrade | ✅ | ❓ |
 | XLL implementation | ✅ | ✅ |
 | .NET free | ✅ | ❌ |
 
 *Comparison based on publicly documented features available at the time of writing.*
 
-## Parameter Binding
+## Query Excel ranges
+
+Similar to xlduckdb, Excel ranges are directly exposed as DuckDB tables.
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(1)
+ WHERE cif = 10001",
+A1:D100
+)
+```
+
+With inference options:
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(1, sample=50)
+ WHERE cif = 10001",
+A1:D100
+)
+```
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(1, all_varchar=true)
+ WHERE cif = 10001",
+A1:D100
+)
+```
+
+## Bind Excel values to SQL
 
 Supports DuckDB prepared statements and positional placeholders.
 
 ```excel
-=DUCKDB.EXEC.ASYNC(
+=DUCKDB.EXEC(
 "SELECT *
  FROM xlrange(1)
  WHERE cif = ?",
 A1:D100,
 10001
+)
+```
+
+Use case: Dynamic range selector
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange(?)
+ WHERE cif = ?",
+A1:D100,
+F1:I200,
+2,
+10001
+)
+```
+
+Use case: Dynamic file reader
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM read_duckdb(?, table_name=?)
+ LIMIT 100",
+"Path\db.duckdb",
+"mytable"
+)
+```
+
+Use case: Dynamic column selector
+
+```excel
+=DUCKDB.EXEC(
+"SELECT columns(?)
+ FROM read_duckdb(?, table_name=?)
+ LIMIT 100",
+"column1",
+"Path\db.duckdb",
+"mytable"
+)
+```
+
+Use case: Dynamic table selector
+
+```excel
+=DUCKDB.EXEC(
+"CREATE TABLE mytable(col1) AS
+ SELECT * FROM range(10);
+ SELECT *
+ FROM query_table(?)",
+"mytable"
 )
 ```
 
@@ -105,59 +179,47 @@ Benefits:
 
 ## Asynchronous Execution
 
-Supports asynchronous worksheet functions.
+Supports asynchronous worksheet functions. Long-running queries do not block Excel recalculation.
 
 ```excel
 =DUCKDB.EXEC.ASYNC(...)
 ```
 
+## Excel Date and Time Values
+
+Adds scalar functions to convert Excel date and time values stored as DOUBLE to DuckDB DATE, TIME and TIMESTAMP.
+
 ```excel
-=DUCKDB.QUERY.ASYNC(...)
+=DUCKDB.EXEC(
+"SELECT xldate(date_col)
+ FROM xlrange(1)",
+A1:D100
+)
 ```
 
-Long-running queries do not block Excel recalculation.
-
-## Native DuckDB Workflows
-
-With DuckDB 1.5+, parameterized execution enables more natural use of DuckDB's dynamic capabilities and external data sources.
-
-This is particularly useful when working with:
-
-- Dynamic table names
-- Dynamic column selection
-- Dynamic database objects
-- External data sources
-- Reusable SQL templates
-
-Examples:
-
-```sql
-SELECT *
-FROM read_duckdb(?, table_name=?)
+```excel
+=DUCKDB.EXEC(
+"SELECT xltime(time_col)
+ FROM xlrange(1)",
+A1:D100
+)
 ```
 
-```sql
-SELECT columns(?)
-FROM read_csv(?)
+```excel
+=DUCKDB.EXEC(
+"SELECT xldatetime(datetime_col)
+ FROM xlrange(1)",
+A1:D100
+)
 ```
-
-```sql
-SELECT *
-FROM query_table(?)
-```
-
-This avoids many string-based SQL construction patterns.
 
 ## Lightweight Native Deployment
 
-The add-in is implemented entirely in native C.
+The add-in is implemented entirely in C.
 
 Benefits:
 
-- No .NET Runtime
-- No VSTO
-- No COM registration
-- No Office Add-in installer
+- No .NET runtime dependency
 - Fast startup
 - Small deployment footprint
 
@@ -182,43 +244,21 @@ with a newer compatible version.
 
 No recompilation of the XLL is required.
 
-## Excel-Native Table Integration
-
-Similar to xlduckdb, Excel ranges are directly exposed as DuckDB tables.
-
-```sql
-SELECT *
-FROM xlrange(1)
-```
-
-If using parameter binding:
-
-```sql
-SELECT *
-FROM xlrange(?)
-```
-
-with configurable schema inference:
-
-```sql
-SELECT *
-FROM xlrange(?, sample=100)
-```
-
 ---
 
-# Features
+# Architecture
 
-- Excel range table function (`xlrange`)
-- Prepared statements
-- Parameter binding
-- Multiple SQL statements
-- Async execution
-- Dynamic-array results
-- Configurable type inference
-- Direct query mode for advanced DuckDB features
-- Runtime configurable sampling
-- Add-in diagnostics (`DUCKDB.INFO`)
+DuckDBExcelAddin executes SQL inside the Excel process using the
+embedded DuckDB engine.
+
+Excel ranges are exposed to DuckDB through the xlrange() table
+function, allowing worksheet data to participate in SQL queries.
+
+SQL statements are extracted, then each statement is prepared,
+bound with parameters, and executed.
+
+The result of the final statement is materialized and returned
+to Excel as a dynamic array (spill range).
 
 ---
 
@@ -251,8 +291,6 @@ Older Excel versions without Dynamic Arrays are not supported.
 
 ## Runtime
 
-- Microsoft Excel 64-bit
-- Dynamic Array support
 - DuckDB 1.5.0 or later (`duckdb.dll`)
 
 ## Build Requirements
@@ -263,7 +301,6 @@ Older Excel versions without Dynamic Arrays are not supported.
 - DuckDB C API
   - `duckdb.h`
   - `duckdb.dll`
-- C11 compiler with atomics support
 
 ---
 
@@ -315,7 +352,7 @@ This modification only affects local compilation and does not affect runtime beh
 
 When building with MinGW-w64 or w64devkit, unresolved external references may occur even though those functions are never used by the add-in.
 
-A simple workaround is providing stub implementations:
+`excel4workaround.c` provides stub implementations:
 
 ```c
 #include <windows.h>
@@ -345,32 +382,20 @@ DuckDBExcelAddIn.xll
 duckdb.dll
 ```
 
-Open the XLL from Excel.
-
-No installer is required.
-
-No COM registration is required.
-
-No .NET runtime is required.
+Open the XLL directly, or add it through the Excel Add-ins dialog.
 
 ---
 
-# Worksheet Functions Reference
+# Worksheet Function References
 
 ## DUCKDB.EXEC
 
-Executes one or more SQL statements using prepared statements.
+Executes one or more SQL statements.
 
 ### Supports
 
-- Parameter binding (`?`)
-- Multiple statements
-- DDL
-- DML
-- Queries
-- Excel ranges via `xlrange()`
-- Static PIVOT statements
-- PIVOT statements that do not require DuckDB dynamic pivot-value discovery
+- Query Excel ranges via `xlrange()`
+- Bind Excel values to SQL (`?`)
 
 ### Syntax
 
@@ -385,74 +410,24 @@ Executes one or more SQL statements using prepared statements.
 )
 ```
 
-### Example
+### Note
 
-```excel
-=DUCKDB.EXEC(
-"SELECT *
- FROM xlrange(1)
- WHERE cif = ?",
-A1:D100,
-10001
-)
-```
+- Ranges must appear before scalar parameters.
+- When multiple SQL statements are supplied, all statements are
+executed sequentially, but only the result of the final statement
+is returned to Excel.
 
 ## DUCKDB.EXEC.ASYNC
 
 Asynchronous version of `DUCKDB.EXEC`.
 
-### Syntax
+### Advantages
 
-```excel
-=DUCKDB.EXEC.ASYNC(sql, ...)
-```
+Long-running queries do not block Excel recalculation.
 
-## DUCKDB.QUERY
+### Disadvantages
 
-Executes SQL directly through DuckDB.
-
-### Supports
-
-- PIVOT
-- Advanced DuckDB SQL features
-- Planner-generated internal types
-- Excel ranges via `xlrange()`
-
-### Does Not Support
-
-- Parameter binding
-
-### Syntax
-
-```excel
-=DUCKDB.QUERY(
-    sql,
-    [range1],
-    [range2]
-)
-```
-
-### Example
-
-```excel
-=DUCKDB.QUERY(
-"PIVOT xlrange(1)
- ON group
- USING SUM(amount)
- GROUP BY cif",
-A1:C100
-)
-```
-
-## DUCKDB.QUERY.ASYNC
-
-Asynchronous version of `DUCKDB.QUERY`.
-
-### Syntax
-
-```excel
-=DUCKDB.QUERY.ASYNC(sql, ...)
-```
+Introduces overhead due to thread creation and deep copying of worksheet ranges.
 
 ## DUCKDB.INFO
 
@@ -462,7 +437,6 @@ This function is useful for:
 
 - Verifying the installed add-in version
 - Confirming which DuckDB version is loaded
-- Checking the current `xlrange()` schema inference sample size
 - Troubleshooting deployment and upgrade issues
 
 ### Syntax
@@ -474,14 +448,7 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: x.x.x
-DuckDB version: x.x.x
-```
-
-### Development Build Example
-
-```text
-Add-in version: dev
+Add-in version: v1.0.0
 DuckDB version: v1.5.4
 ```
 
@@ -496,96 +463,72 @@ DuckDB version: v1.5.4
 
 # DuckDB Table Function References
 
-## xlrange(index)
+## xlrange
 
 Exposes Excel ranges as DuckDB tables.
 
-### Example
+### Syntax
 
-```excel
-=DUCKDB.EXEC(
-"SELECT *
- FROM xlrange(1)",
-A1:D100
-)
+```sql
+xlrange(index, sample=n, all_varchar=true)
 ```
 
-### Multiple Ranges with Parameter Binding
+### Note
 
-```excel
-=DUCKDB.EXEC(
-"SELECT *
- FROM xlrange(?) a
- JOIN xlrange(?) b
-   ON a.cif = b.cif",
-A1:D100,
-F1:H100,
-1,
-2
-)
-```
+- index (required) is the 1-based position of an Excel range passed to DUCKDB.EXEC or DUCKDB.EXEC.ASYNC
+- sample specifies the number of data rows used for type inference. A value of 0 samples all data rows. Defaults to 30 rows.
+- When all_varchar = true, all values are returned as VARCHAR and type inference is disabled.
+- The first row is always interpreted as column names and is not returned as data.
+- Column names must be non-empty and valid DuckDB identifiers.
 
-### Rules
-
-- First row is treated as column names.
-- Column names must be non-empty.
-- Ranges must appear before scalar parameters.
-- Range numbering starts at 1.
-
-### Type Inference Sampling
-
-Supported inferred DuckDB types:
-
-Column types are inferred by sampling worksheet rows.
+### Type Mapping
 
 | Excel Value | DuckDB Type |
 |------------|-------------|
-| Number | DOUBLE |
+| Number | DOUBLE or INTEGER |
 | Boolean | BOOLEAN |
 | Text | VARCHAR |
 | Empty/Null | Ignored during inference |
 
-The optional named parameter `sample` controls the number of rows used during type inference.
+### Inference Strategy
+
+1. Scan for the first non-empty value and use its type as the candidate column type. Integer-valued numeric cells are inferred as INTEGER when all sampled numeric values fit within INT32.
+
+2. Sample the remaining rows up to the configured sample limit.
+
+3. If incompatible types are encountered, fall back to VARCHAR.
+
+# DuckDB Scalar Function References
+
+## xldate
+
+Convert an Excel serial date value to a DuckDB DATE.
+
+### Syntax
 
 ```sql
-SELECT *
-FROM xlrange(1, sample = 100)
+xldate(value)
 ```
 
-Rules:
+## xltime
 
-- Larger values may improve inference accuracy for mixed-type columns.
-- Smaller values may reduce initialization overhead for large ranges.
-- The default sample size is `30`.
+Convert the fractional portion of an Excel serial value to a DuckDB TIME.
 
----
+### Syntax
 
-# Type Inference
-
-
-
-Default sample count:
-
-```text
-30 rows
+```sql
+xltime(value)
 ```
 
----
+## xldatetime
 
-# Choosing Between EXEC and QUERY
+Convert an Excel serial datetime value to a DuckDB TIMESTAMP.
 
-| Feature | EXEC | QUERY |
-|----------|------|--------|
-| Single statements | ✅ | ✅ |
-| Multiple statements | ✅ | ✅ |
-| xlrange() | ✅ | ✅ |
-| Bind Excel values to statement parameters | ✅ | ❌ |
-| PIVOT | ⚠️ | ✅ |
-| Async support | ✅ | ✅ |
+### Syntax
 
-Use **QUERY** when working with dynamic PIVOT.
-
-Use **EXEC** for all other scenarios.
+```sql
+xldatetime(value)
+```
 
 ---
 
@@ -608,6 +551,13 @@ Queries exceeding these limits are not supported.
 ## Excel Number Types
 
 Big DuckDB numeric types (BIGINT, HUGEINT, DECIMAL) may lose precision when converted to Excel numbers (DOUBLE).
+
+## Excel Date and Time
+
+Excel date and time values are stored internally as DOUBLE values.
+
+Use xldate(), xltime(), and xldatetime() when DuckDB DATE, TIME,
+or TIMESTAMP semantics are required.
 
 ## DuckDB Composite Types
 
@@ -635,7 +585,6 @@ or:
 ```sql
 SELECT to_json(my_struct)
 ```
-
 
 ## Excel Range-Based Data Exchange
 
@@ -711,14 +660,12 @@ Verify:
 
 DuckDB has fundamentally changed what is possible for local and offline analytics.
 
-Many analytical tasks previously required:
+Many analytical workflows traditionally relied on combinations of:
 
 - Database servers
-- Complex ETL pipelines
-- Heavy frameworks
-- Python programming
-- Notebooks
-- Specialized BI tools
+- ETL pipelines
+- Python notebooks
+- BI tools
 
 These tools can be difficult to deploy and are often unfamiliar to many office users and managers.
 
