@@ -5,12 +5,11 @@
 #include "helper.h"
 #include "config.h"
 
-#define DEFINE_FUNC(duckdb_name, func) TO_DUCKDB_FUNC_TYPE(duckdb_name) func = NULL;
-DUCKDB_FUNCS(DEFINE_FUNC)
-#undef DEFINE_FUNC
+#define DEFINE_DUCKDB_FUNCTION_POINTER(duckdb_name, func) TO_DUCKDB_FUNCTION_TYPE(duckdb_name) func = NULL;
+DUCKDB_FUNCTION_POINTERS(DEFINE_DUCKDB_FUNCTION_POINTER)
 
 /* Resolve all required APIs. On failure, report a version mismatch. */
-static int load_duckdb_funcs(const HWND hwnd, const HMODULE dll)
+static int load_DUCKDB_FUNCTION_POINTERS(const HWND hwnd, const HMODULE dll)
 {
     if (!dll)
         goto reset;
@@ -21,11 +20,12 @@ static int load_duckdb_funcs(const HWND hwnd, const HMODULE dll)
     #define LOAD_FUNC(duckdb_name, func) \
     do { \
         func_name = TO_STR(duckdb_name); \
-        func = (TO_DUCKDB_FUNC_TYPE(duckdb_name))GetProcAddress(dll, func_name); \
-        if (!func) goto check_version; \
+        func = (TO_DUCKDB_FUNCTION_TYPE(duckdb_name))GetProcAddress(dll, func_name); \
+        if (!func) \
+            goto check_version; \
     } while (0);
 
-    DUCKDB_FUNCS(LOAD_FUNC)
+    DUCKDB_FUNCTION_POINTERS(LOAD_FUNC)
 
     return 1;
 
@@ -36,7 +36,6 @@ check_version:
 
     wchar_t msg[MSG_MAX_LENGTH];
 
-    // Version API may already be loaded even when a later symbol fails
     if (DUCKDB_LIBRARY_VERSION)
     {
         if (swprintf(
@@ -64,10 +63,7 @@ generic_error:
 
 reset:
 
-    DUCKDB_FUNCS(RESET_FUNC)
-
-    #undef RESET_FUNC
-    #undef LOAD_FUNC
+    DUCKDB_FUNCTION_POINTERS(RESET_FUNC)
 
     return 0;
 }
@@ -119,7 +115,7 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
     if (!dll)
         goto fail;
 
-    if (!load_duckdb_funcs(hwnd, dll))
+    if (!load_DUCKDB_FUNCTION_POINTERS(hwnd, dll))
     {
         FreeLibrary(dll);
         return NULL;
