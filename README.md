@@ -448,7 +448,7 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: v1.0.0
+Add-in version: v0.3.0
 DuckDB version: v1.5.4
 ```
 
