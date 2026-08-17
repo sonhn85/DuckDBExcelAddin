@@ -17,19 +17,6 @@
 #define ERR_MSG_EXCEED_SIZE_LIMIT   "Excel row or column limit exceeded"
 #define ERR_MSG_UNSUPPORTED_TYPE    "Unsupported DuckDB type. Convert the value to VARCHAR before returning it to Excel"
 
-// duckdb max decimal scale is 18 
-static const double DEC_DIVISORS[] = {
-    1e0,    1e1,    1e2,    1e3,    1e4,    1e5,    1e6,    1e7,    1e8,    1e9,
-    1e10,   1e11,   1e12,   1e13,   1e14,   1e15,   1e16,   1e17,   1e18
-};
-
-#define S_PER_DAY   86400.0                 // seconds per day
-#define MS_PER_DAY  86400000.0              // miliseconds per day
-#define US_PER_DAY  86400000000.0           // microseconds per day
-#define NS_PER_DAY  86400000000000.0        // nanoseconds per day
-#define EPOCH_DELTA 25569.0                 // in days between excel and duckdb epoch
-#define TIMETZ_OFFSET_BITS      24
-
 void free_and_reset_chunk_list(chunk_list *chunklist)
 {
     if (!chunklist)
@@ -40,10 +27,12 @@ void free_and_reset_chunk_list(chunk_list *chunklist)
     while (node)
     {
         chunk_node *next = node->next;
+
         free(node->vectors);
         free(node->valid_masks);
         DUCKDB_DESTROY_DATA_CHUNK(&(node->chunk));
         free(node);
+
         node = next;
     }
 
@@ -168,7 +157,7 @@ int fetch_chunks(
     chunklist->base_types = base_types;
     chunklist->dec_scales = dec_scales;
 
-    for (idx_t c=0; c < ncols; c++)
+    for (idx_t c = 0; c < ncols; c++)
     {
         const char *col_name = DUCKDB_COLUMN_NAME(result, c);
 
@@ -261,7 +250,8 @@ int fetch_chunks(
 
         duckdb_data_chunk chunk = DUCKDB_FETCH_CHUNK(*result);
 
-        if (!chunk) break;
+        if (!chunk)
+            break;
 
         idx_t nrows = DUCKDB_DATA_CHUNK_GET_SIZE(chunk);
 
@@ -295,7 +285,7 @@ int fetch_chunks(
             goto loop_fail;
         }
 
-        for (idx_t c=0; c < ncols; c++)
+        for (idx_t c = 0; c < ncols; c++)
         {
             duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(chunk, c);
 
@@ -320,7 +310,7 @@ int fetch_chunks(
                     buf_size,
                     "fetching data",
                     NULL,
-                    ERR_MSG_UNSUPPORTED_TYPE
+                    ERR_MSG_INTERNAL
                 );
                 goto loop_fail;
             }
@@ -351,10 +341,12 @@ int fetch_chunks(
         continue;
     
     loop_fail:
+
         free(node);
         free(vectors);
         free(valid_masks);
         DUCKDB_DESTROY_DATA_CHUNK(&chunk);
+
         goto fail;
     }
 
@@ -367,24 +359,24 @@ fail:
     return 0;
 }
 
-#define TO_DUCKDB_TYPE_ENUM(X) DUCKDB_TYPE_##X
-#define TO_FUNC_NAME(X, Y) X##_to_##Y
-#define TO_DEC_FUNC_NAME(X, Y) X##_BASED_DEC_to_##Y
+#define TO_DUCKDB_TYPE_ENUM(DUCKDB_TYPE) DUCKDB_TYPE_##DUCKDB_TYPE
+#define TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_to_##XLTYPE
+#define TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_based_decimal_to_##XLTYPE
 
-#define DEF_FUNC(lib_type, vector_type, xl_type, converter_codes)                   \
-void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
+#define DEFINE_NON_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
+void TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
 {                                                                                   \
     idx_t ncols = chunklist->ncols;                                                 \
-    for (chunk_node *node=chunklist->head; node!=NULL; node = node->next)           \
+    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)         \
     {                                                                               \
-        const vector_type *val = (const vector_type *)(node->vectors[col]);         \
+        VECTOR_TYPE *val = node->vectors[col];                                      \
         idx_t nrows = node->nrows;                                                  \
-        const uint64_t *valid_mask = (const uint64_t *)(node->valid_masks[col]);    \
+        uint64_t *valid_mask = node->valid_masks[col];                              \
         if (!valid_mask)                                                            \
         {                                                                           \
             for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                 \
             {                                                                       \
-                converter_codes;                                                    \
+                CONVERTER_MACRO;                                                    \
             }                                                                       \
         } else {                                                                    \
             for (idx_t base = 0; base < nrows; base += 64)                          \
@@ -397,7 +389,7 @@ void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx
                 {                                                                   \
                     if (mask & 1ULL)                                                \
                     {                                                               \
-                        converter_codes;                                            \
+                        CONVERTER_MACRO;                                            \
                     } else {                                                        \
                         cell->xltype = xltypeErr;                                   \
                         cell->val.err = xlerrNA;                                    \
@@ -411,21 +403,21 @@ void TO_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx
     }                                                                               \
 }
 
-#define DEF_DECIMAL_FUNC(lib_type, vector_type, xl_type, converter_codes)           \
-void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
+#define DEFINE_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
+void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
 {                                                                                   \
     idx_t ncols = chunklist->ncols;                                                 \
     double dec_divisor = DEC_DIVISORS[chunklist->dec_scales[col]];                  \
-    for (chunk_node *node=chunklist->head; node!=NULL; node = node->next)           \
+    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)         \
     {                                                                               \
-        const vector_type *val = (const vector_type *)(node->vectors[col]);         \
+        VECTOR_TYPE *val = node->vectors[col];                                      \
         idx_t nrows = node->nrows;                                                  \
-        const uint64_t *valid_mask = (const uint64_t *)(node->valid_masks[col]);    \
+        uint64_t *valid_mask = node->valid_masks[col];                              \
         if (!valid_mask)                                                            \
         {                                                                           \
             for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                 \
             {                                                                       \
-                converter_codes(dec_divisor);                                       \
+                CONVERTER_MACRO(dec_divisor);                                       \
             }                                                                       \
         } else {                                                                    \
             for (idx_t base = 0; base < nrows; base += 64)                          \
@@ -438,7 +430,7 @@ void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist,
                 {                                                                   \
                     if (mask & 1ULL)                                                \
                     {                                                               \
-                        converter_codes(dec_divisor);                               \
+                        CONVERTER_MACRO(dec_divisor);                               \
                     } else {                                                        \
                         cell->xltype = xltypeErr;                                   \
                         cell->val.err = xlerrNA;                                    \
@@ -558,7 +550,7 @@ void TO_DEC_FUNC_NAME(lib_type, xl_type)(LPXLOPER12 cell, chunk_list *chunklist,
         cell->val.num = ((double)val->nanos / NS_PER_DAY) + EPOCH_DELTA; \
     } while (0)
 
-#define INT_CONVERTERS(X) \
+#define INT_CONVERTER_FUNCTIONS(X) \
 X(TINYINT, int8_t, XLNUM, INT_TO_DBL) \
 X(UTINYINT, uint8_t, XLNUM, INT_TO_DBL) \
 X(SMALLINT, int16_t, XLNUM, INT_TO_DBL) \
@@ -570,23 +562,23 @@ X(UBIGINT, uint64_t, XLNUM, INT_TO_DBL) \
 X(HUGEINT, duckdb_hugeint, XLNUM, HINT_TO_DBL) \
 X(UHUGEINT, duckdb_uhugeint, XLNUM, UHINT_TO_DBL)
 
-#define BOOL_CONVERTERS(X) \
+#define BOOL_CONVERTER_FUNCTIONS(X) \
 X(BOOLEAN, bool, XLBOOL, BOOL_TO_BOOL)
 
-#define FLOAT_CONVERTERS(X) \
+#define FLOAT_CONVERTER_FUNCTIONS(X) \
 X(FLOAT, float, XLNUM, FLOAT_TO_DBL) \
 X(DOUBLE, double, XLNUM, FLOAT_TO_DBL)
 
-#define STRING_CONVERTERS(X) \
+#define STRING_CONVERTER_FUNCTIONS(X) \
 X(VARCHAR, duckdb_string_t, XLSTR, STR_TO_STR)
 
-#define DECIMAL_CONVERTERS(X) \
+#define DECIMAL_CONVERTER_FUNCTIONS(X) \
 X(SMALLINT, int16_t, XLNUM, DEC_TO_DBL) \
 X(INTEGER, int32_t, XLNUM, DEC_TO_DBL) \
 X(BIGINT, int64_t, XLNUM, DEC_TO_DBL) \
 X(HUGEINT, duckdb_hugeint, XLNUM, DEC128_TO_DBL)
 
-#define DATE_TIME_CONVERTERS(X) \
+#define DATE_TIME_CONVERTER_FUNCTIONS(X) \
 X(DATE, duckdb_date, XLNUM, DATE_TO_DBL) \
 X(TIME, duckdb_time, XLNUM, TIME_TO_DBL) \
 X(TIME_TZ, duckdb_time_tz, XLNUM, TIME_TZ_TO_DBL) \
@@ -596,15 +588,15 @@ X(TIMESTAMP, duckdb_timestamp, XLNUM, TIMESTAMP_TO_DBL) \
 X(TIMESTAMP_NS, duckdb_timestamp_ns, XLNUM, TIMESTAMP_NS_TO_DBL) \
 X(TIMESTAMP_TZ, duckdb_timestamp, XLNUM, TIMESTAMP_TO_DBL)
 
-#define NON_DEC_CONVERTERS(X) \
-STRING_CONVERTERS(X) \
-INT_CONVERTERS(X) \
-BOOL_CONVERTERS(X) \
-FLOAT_CONVERTERS(X) \
-DATE_TIME_CONVERTERS(X)
+#define NON_DECIMAL_CONVERTER_FUNCTIONS(X) \
+STRING_CONVERTER_FUNCTIONS(X) \
+INT_CONVERTER_FUNCTIONS(X) \
+BOOL_CONVERTER_FUNCTIONS(X) \
+FLOAT_CONVERTER_FUNCTIONS(X) \
+DATE_TIME_CONVERTER_FUNCTIONS(X)
 
-NON_DEC_CONVERTERS(DEF_FUNC)
-DECIMAL_CONVERTERS(DEF_DECIMAL_FUNC)
+NON_DECIMAL_CONVERTER_FUNCTIONS(DEFINE_NON_DECIMAL_CONVERTER_FUNCTION)
+DECIMAL_CONVERTER_FUNCTIONS(DEFINE_DECIMAL_CONVERTER_FUNCTION)
 
 LPXLOPER12 chunks_to_range(chunk_list *chunklist) 
 {
@@ -636,7 +628,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
             sizeof(errmsg),
             "writing output",
             NULL,
-            ERR_MSG_EXCEED_SIZE_LIMIT
+            ERR_MSG_INTERNAL
         );
         goto fail;
     }
@@ -675,7 +667,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
 
     const char **col_names = chunklist->col_names;
 
-    for (size_t c=0; c < ncols; c++, cell++)
+    for (size_t c = 0; c < ncols; c++, cell++)
     {
         const char *col_name = col_names[c];
 
@@ -686,7 +678,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
                 sizeof(errmsg),
                 "writing output",
                 NULL,
-                ERR_MSG_INVALID_COL_NAME
+                ERR_MSG_INTERNAL
             );
             goto rollback;
         }
@@ -720,24 +712,26 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
         goto fail;
     }
 
-    for (size_t c=0; c < ncols; c++, cell++)
+    for (size_t c = 0; c < ncols; c++, cell++)
     {
         switch (chunklist->col_types[c])
         {
-            #define MAPPING(lib_type, vector_type, xl_type, converter_codes) \
-            case TO_DUCKDB_TYPE_ENUM(lib_type): \
-                TO_FUNC_NAME(lib_type, xl_type)(cell, chunklist, c); \
+            #define NON_DECIMAL_CASES(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
+            case TO_DUCKDB_TYPE_ENUM(DUCKDB_TYPE): \
+                TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(cell, chunklist, c); \
                 break;
-            NON_DEC_CONVERTERS(MAPPING)
+
+            NON_DECIMAL_CONVERTER_FUNCTIONS(NON_DECIMAL_CASES)
 
             case DUCKDB_TYPE_DECIMAL:
                 switch (chunklist->base_types[c]) 
                 {
-                    #define MAPPING_DECIMAL(lib_type, vector_type, xl_type, converter_codes) \
-                    case TO_DUCKDB_TYPE_ENUM(lib_type): \
-                        TO_DEC_FUNC_NAME(lib_type, xl_type)(cell, chunklist, c); \
+                    #define DECIMAL_CASES(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
+                    case TO_DUCKDB_TYPE_ENUM(DUCKDB_TYPE): \
+                        TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(cell, chunklist, c); \
                         break;
-                    DECIMAL_CONVERTERS(MAPPING_DECIMAL)
+
+                    DECIMAL_CONVERTER_FUNCTIONS(DECIMAL_CASES)
 
                     default:
                         cell->xltype = xltypeErr;
