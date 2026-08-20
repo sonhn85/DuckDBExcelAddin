@@ -161,6 +161,44 @@ void WINAPI xlAutoFree12(LPXLOPER12 pxFree)
     xloper12_free(pxFree);
 }
 
+LPXLOPER12 WINAPI xlAddInManagerInfo12(LPXLOPER12 pxAction)
+{
+    LPXLOPER12 xInfo = NULL;
+    
+    if (!pxAction)
+        return NULL;
+
+    XLOPER12 xIntAction;
+
+    if(Excel12f(
+        xlCoerce,
+        &xIntAction,
+        2, pxAction,
+        TempInt12(xltypeInt)
+       ) != xlretSuccess)
+    {
+        return NULL;
+    }
+    
+    if (xIntAction.val.w == 1) 
+    {
+        xInfo = make_string_cell("DuckDBExcelAddin");
+    }
+    else 
+    {
+        xInfo = malloc(sizeof(*xInfo));
+        if (xInfo)
+        {
+            xInfo->xltype = xltypeErr | xlbitDLLFree;
+            xInfo->val.err = xlerrValue;
+        }
+    }
+
+    Excel12f(xlFree, NULL, 1, &xIntAction);
+
+    return xInfo;
+}
+
 /*
  * Split worksheet arguments into:
  *   - leading xltypeMulti arguments (data ranges)
@@ -827,7 +865,7 @@ LPXLOPER12 addin_info(void)
         buf,
         sizeof(buf),
         "Add-in version: %s\n"
-        "DuckDB version: %s\n",
+        "DuckDB version: %s",
         ADDIN_VERSION,
         duckdb_ver ? duckdb_ver : "unknown"
     );
