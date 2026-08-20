@@ -2,7 +2,6 @@
 #include <wchar.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdatomic.h>
 #include <stdio.h>
 
 #include "DuckDBExcelAddin.h"
