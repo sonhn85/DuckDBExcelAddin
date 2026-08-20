@@ -181,7 +181,7 @@ LPXLOPER12 WINAPI xlAddInManagerInfo12(LPXLOPER12 pxAction)
     
     if (xIntAction.val.w == 1) 
     {
-        xInfo = make_string_cell("DuckDBExcelAddin");
+        xInfo = make_string_cell(ADDIN_MANAGER_TEXT);
     }
     else 
     {
