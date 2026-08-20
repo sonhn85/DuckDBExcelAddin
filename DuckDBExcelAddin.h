@@ -30,7 +30,8 @@
 /* Type and name pair of parameters (comma-separated) */
 #define WORKSHEET_PARAM_AND_TYPE_LIST WORKSHEET_PARAMS(WORKSHEET_PARAM_AND_TYPE_SEPARATED, WORKSHEET_PARAM_AND_TYPE)
 /* Comma-separated parameter help text. */
-#define HELP_TEXT L"statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_NO_INIT L"statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_WITH_INIT L"statements,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
 /* Complete Excel registration type string. */
 #define TYPE_STRING(PREFIX, SUFFIX) PREFIX WORKSHEET_PARAM_STRING SUFFIX
 
@@ -45,9 +46,11 @@
  *    category)
  */
 #define XLL_FUNCTIONS(X) \
-X(exec_sync,        L"DUCKDB.EXEC",          TYPE_STRING(L"QD%", L"$"),   HELP_TEXT,       FUNCTION_CATEGORY) \
-X(exec_async,       L"DUCKDB.EXEC.ASYNC",    TYPE_STRING(L">XD%", L"$"),  HELP_TEXT,       FUNCTION_CATEGORY) \
-X(addin_info,       L"DUCKDB.INFO",          L"Q",                        L"",             FUNCTION_CATEGORY)
+X(exec_sync_no_init,    L"DUCKDB.EXEC",        TYPE_STRING(L"QD%", L"$"),    HELP_TEXT_NO_INIT,   FUNCTION_CATEGORY) \
+X(exec_async_no_init,   L"DUCKDB.EXEC.ASYNC",  TYPE_STRING(L">XD%", L"$"),   HELP_TEXT_NO_INIT,   FUNCTION_CATEGORY) \
+X(addin_info,           L"DUCKDB.INFO",        L"Q",                         L"",                 FUNCTION_CATEGORY) \
+X(exec_sync_with_init,  L"DUCKDB.EXECX",       TYPE_STRING(L"QD%D%", L"$"),  HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY) \
+X(exec_async_with_init, L"DUCKDB.EXECX.ASYNC", TYPE_STRING(L">XD%D%", L"$"), HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY)
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,8 +77,8 @@ DLLEXPORT void WINAPI xlAutoFree12(LPXLOPER12 pxFree);
  *
  * Returns the statement result as an XLOPER12 value.
  */
-DLLEXPORT LPXLOPER12 WINAPI exec_sync(
-    const wchar_t *stmt,
+DLLEXPORT LPXLOPER12 WINAPI exec_sync_no_init(
+    const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
@@ -87,9 +90,9 @@ DLLEXPORT LPXLOPER12 WINAPI exec_sync(
  * Results are delivered through Excel's asynchronous
  * worksheet function mechanism.
  */
-DLLEXPORT void WINAPI exec_async(
+DLLEXPORT void WINAPI exec_async_no_init(
     LPXLOPER12 asyncHandle,
-    const wchar_t *stmt,
+    const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
@@ -98,6 +101,40 @@ DLLEXPORT void WINAPI exec_async(
  * runtime environment.
  */
 DLLEXPORT LPXLOPER12 addin_info(void);
+
+/*
+ * Execute SQL statements synchronously.
+ *
+ * An optional initialization SQL script may be executed
+ * before the main statement.
+ *
+ * Supports parameter binding.
+ *
+ * Returns the statement result as an XLOPER12 value.
+ */
+DLLEXPORT LPXLOPER12 WINAPI exec_sync_with_init(
+    const wchar_t *pre_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
+
+/*
+ * Execute SQL statements asynchronously.
+ *
+ * An optional initialization SQL script may be executed
+ * before the main statement.
+ *
+ * Supports parameter binding.
+ *
+ * Results are delivered through Excel's asynchronous
+ * worksheet function mechanism.
+ */
+DLLEXPORT void WINAPI exec_async_with_init(
+    LPXLOPER12 asyncHandle,
+    const wchar_t *pre_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
 
 #undef DLLEXPORT
 
