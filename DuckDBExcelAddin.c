@@ -11,19 +11,20 @@
 #include "db_xlrange.h"
 #include "db_scalar_funcs.h"
 
-#define ERR_MSG_INTERNAL                    "Error: Internal error"
-#define ERR_MSG_INVALID_PARAM               "Error: Invalid parameters"
-#define ERR_MSG_PARAM_BIND_FAILURE          "Error: Parameter binding failed"
-#define ERR_MSG_DUCKDB_INIT_FAILURE         "Error: DuckDB initialization failed"
-#define ERR_MSG_TEXT_CONVERSION_FAILURE     "Error: Text conversion failed"
-#define ERR_MSG_STMT_EMPTY                  "Error: Empty statement"
-#define ERR_MSG_STMT_PREPARE_FAILURE        "Error: Statement preparation failed"
-#define ERR_MSG_STMT_EXEC_FAILURE           "Error: Statement execution failed"
-#define ERR_MSG_RESULT_FETCH_FAILURE        "Error: Result fetch failed"
-#define ERR_MSG_XLRANGE_REGISTER_FAILURE    "Error: xlrange() registration failed"
-#define ERR_MSG_EXTRACT_STMTS_FAILURE       "Error: Statement parsing failed"
-#define ERR_MSG_BIND_UNSUPPORTED            "Error: QUERY mode does not support parameters"
-#define ERR_MSG_INFO_NA                     "Error: Failed to get add-in info"
+#define ERR_MSG_INTERNAL                      "Error: Internal error"
+#define ERR_MSG_INVALID_PARAM                 "Error: Invalid parameters"
+#define ERR_MSG_PARAM_BIND_FAILURE            "Error: Parameter binding failed"
+#define ERR_MSG_DUCKDB_INIT_FAILURE           "Error: DuckDB initialization failed"
+#define ERR_MSG_TEXT_CONVERSION_FAILURE       "Error: Text conversion failed"
+#define ERR_MSG_SQL_EMPTY                     "Error: Empty statement"
+#define ERR_MSG_STMT_PREPARE_FAILURE          "Error: Statement preparation failed"
+#define ERR_MSG_STMT_EXEC_FAILURE             "Error: Statement execution failed"
+#define ERR_MSG_INIT_SQL_EXEC_FAILURE         "Error: Initialization SQL execution failed"
+#define ERR_MSG_RESULT_FETCH_FAILURE          "Error: Result fetch failed"
+#define ERR_MSG_XLRANGE_REGISTER_FAILURE      "Error: xlrange() registration failed"
+#define ERR_MSG_EXTRACT_STMTS_FAILURE         "Error: Statement parsing failed"
+#define ERR_MSG_BIND_UNSUPPORTED              "Error: QUERY mode does not support parameters"
+#define ERR_MSG_INFO_NA                       "Error: Failed to get add-in info"
 #define ERR_MSG_SCALAR_FUNCS_REGISTER_FAILURE "Error: Scalar functions registration failed"
 
 static HMODULE g_duckdb_dll = NULL;
@@ -31,6 +32,7 @@ static HMODULE g_duckdb_dll = NULL;
 typedef struct async_context_t
 {
     XLOPER12 asyncHandle;
+    wchar_t *init_sql;
     wchar_t *sql;
     XLOPER12 *ranges;
     size_t nranges;
@@ -379,11 +381,17 @@ static int bind_params(
  * Execute one or more SQL statements and return the result of the
  * final statement as an Excel range.
  *
+ * Initialization SQL, when supplied, is executed before the main
+ * SQL statement.
+ *
  * When multiple statements are supplied, all statements are executed
- * sequentially but only the result set produced by the final statement
- * is returned.
+ * sequentially, but only the result set produced by the final
+ * statement is returned.
  *
  * Parameters:
+ *   init_sql Optional initialization SQL.
+ *            Typically used to define macros, views, or other
+ *            reusable business logic.
  *   sql      SQL text to execute.
  *   ranges   Excel ranges available through xlrange(index).
  *   nranges  Number of elements in ranges.
@@ -398,6 +406,7 @@ static int bind_params(
  * The returned value must be released through xlAutoFree12().
  */
 static LPXLOPER12 run_sql_create_range(
+    const wchar_t *init_sql,
     const wchar_t *sql,
     XLOPER12 *ranges,
     size_t nranges,
@@ -405,6 +414,7 @@ static LPXLOPER12 run_sql_create_range(
     size_t nparams)
 {
     char *sql_utf8 = NULL;
+    char *init_sql_utf8 = NULL;
     duckdb_database db = NULL;
     duckdb_connection con = NULL;
     duckdb_table_function xlrange_func = NULL;
@@ -420,11 +430,12 @@ static LPXLOPER12 run_sql_create_range(
 
     if (is_null_or_whitespace_xlstr(sql))
     {
-        result = make_string_cell(ERR_MSG_STMT_EMPTY);
+        result = make_string_cell(ERR_MSG_SQL_EMPTY);
         goto cleanup;
     }
 
-    if (xlstr_to_utf8(&sql_utf8, sql, NULL) == 0)
+    if (xlstr_to_utf8(&sql_utf8, sql, NULL) == 0
+        || (init_sql && xlstr_to_utf8(&init_sql_utf8, init_sql, NULL) == 0))
     {
         result = make_string_cell(ERR_MSG_TEXT_CONVERSION_FAILURE);
         goto cleanup;
@@ -462,6 +473,25 @@ static LPXLOPER12 run_sql_create_range(
         result = make_string_cell(ERR_MSG_XLRANGE_REGISTER_FAILURE);
         goto cleanup;
     }
+
+    /* Execute initialization SQL */
+    if (init_sql_utf8)
+    {
+        duckdb_result qresult = {0};
+
+        if(DUCKDB_QUERY(con, init_sql_utf8, &qresult) != DuckDBSuccess)
+        {
+            const char *msg = DUCKDB_RESULT_ERROR(&qresult);
+            result = make_string_cell(
+                msg ? msg : ERR_MSG_INIT_SQL_EXEC_FAILURE
+            );
+            DUCKDB_DESTROY_RESULT(&qresult);
+            goto cleanup;
+        }
+        DUCKDB_DESTROY_RESULT(&qresult);
+    }
+
+    /* Begin execution of main SQL */
 
     stmt_count = DUCKDB_EXTRACT_STATEMENTS(con, sql_utf8, &extracted_stmts);
 
@@ -573,6 +603,8 @@ cleanup:
 
     free(sql_utf8);
 
+    free(init_sql_utf8);
+
     if (con)
         DUCKDB_DISCONNECT(&con);
     
@@ -604,6 +636,7 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
         xl_result = make_string_cell(ctx->err_msg);
     else 
         xl_result = run_sql_create_range(
+            ctx->init_sql,
             ctx->sql,
             ctx->ranges,
             ctx->nranges,
@@ -625,6 +658,7 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
     xloper12_free_array(ctx->params, ctx->nparams);
     xloper12_free_array(ctx->ranges, ctx->nranges);
     free(ctx->sql);
+    free(ctx->init_sql);
     free(ctx);
 
     return 0;
@@ -634,8 +668,9 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
  * Create an asynchronous execution context and
  * queue execution on a worker thread.
  */
-void WINAPI exec_async(
+static void exec_async(
     LPXLOPER12 asyncHandle,
+    const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
@@ -654,14 +689,34 @@ void WINAPI exec_async(
 
     wchar_t *sql_copy = malloc((sql_len + 1)*sizeof(*sql_copy));
 
-    if (!sql_copy)
+    size_t init_sql_len = 0;
+
+    wchar_t *init_sql_copy = NULL;
+    
+    if (init_sql)
     {
+        init_sql_len = init_sql[0];
+
+        init_sql_copy = malloc((init_sql_len + 1)*sizeof(*init_sql_copy));
+    }
+
+    if (!sql_copy || (init_sql && !init_sql_copy))
+    {
+        free(sql_copy);
+        free(init_sql_copy);
+
         ctx->err_msg = ERR_MSG_INTERNAL;
+
         goto fire_thread;
     }
 
     wmemcpy(sql_copy, sql, sql_len + 1);
+    
+    if (init_sql)
+        wmemcpy(init_sql_copy, init_sql, init_sql_len + 1);
+
     ctx->sql = sql_copy;
+    ctx->init_sql = init_sql_copy;
 
     XLOPER12 *params = NULL;
     XLOPER12 *ranges = NULL;
@@ -716,13 +771,15 @@ fire_thread:
         xloper12_free_array(ctx->params, ctx->nparams);
         xloper12_free_array(ctx->ranges, ctx->nranges);
         free(ctx->sql);
+        free(ctx->init_sql);
         free(ctx);
     }
 
     return;
 }
 
-LPXLOPER12 WINAPI exec_sync(
+static LPXLOPER12 exec_sync(
+    const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
@@ -742,6 +799,7 @@ LPXLOPER12 WINAPI exec_sync(
         return make_string_cell(ERR_MSG_INVALID_PARAM);
 
     LPXLOPER12 xl_result = run_sql_create_range(
+        init_sql,
         sql,
         ranges,
         nranges,
@@ -778,4 +836,54 @@ LPXLOPER12 addin_info(void)
         return make_string_cell(ERR_MSG_INFO_NA);
 
     return make_string_cell(buf);
+}
+
+LPXLOPER12 WINAPI exec_sync_no_init(
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    return exec_sync(
+        NULL,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+void WINAPI exec_async_no_init(
+    LPXLOPER12 asyncHandle,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    exec_async(
+        asyncHandle,
+        NULL,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+LPXLOPER12 WINAPI exec_sync_with_init(
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    return exec_sync(
+        init_sql,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+void WINAPI exec_async_with_init(
+    LPXLOPER12 asyncHandle,
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    exec_async(
+        asyncHandle,
+        init_sql,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
 }
