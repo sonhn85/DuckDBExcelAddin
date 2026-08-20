@@ -1,24 +1,20 @@
 # DuckDBExcelAddin
 
-A native Microsoft Excel XLL add-in that enables running SQL directly against Excel ranges using DuckDB.
+A native Microsoft Excel XLL add-in for querying Excel ranges with SQL using DuckDB.
 
-The add-in provides:
+Features:
 
-- Native DuckDB integration inside Excel
-- Excel range table functions (`xlrange`)
-- Prepared statements with parameter binding
-- Multiple SQL statements in a single execution
+- Native DuckDB integration
+- Query Excel ranges
+- Bind Excel values to SQL
 - Asynchronous execution
-- Dynamic-array (spill range) output
-- Configurable schema inference
 - Lightweight deployment
-- No .NET runtime dependency
 
-> Status: Beta / Early Release
+> Status: Beta
 >
-> Core functionality is implemented and usable for day-to-day
-> workloads. APIs and behavior may still evolve before the first
-> stable release.
+> Core functionality is implemented and suitable for day-to-day
+> use. New features and improvements are still being added, but
+> compatibility with existing workbooks is a priority.
 
 ---
 
@@ -318,6 +314,22 @@ Contributions and testing reports are welcome.
 
 # Build Notes
 
+## Build
+
+### Development
+
+```bash
+make EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
+
+```
+
+### Release
+
+```bash
+make ADDIN_VERSION=vx.x.x EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
+
+```
+
 ## XLCALL.H, FRAMEWRK.C Compatibility
 
 Some versions of `XLCALL.H` contain a struct member named:
@@ -429,6 +441,32 @@ Long-running queries do not block Excel recalculation.
 
 Introduces overhead due to thread creation and deep copying of worksheet ranges.
 
+## DUCKDB.EXECX
+
+Executes initialization SQL followed by one or more SQL statements.
+
+Initialization SQL is executed before the main query and can be
+used to define reusable macros, views, or other helper objects.
+
+### Syntax
+
+```excel
+=DUCKDB.EXECX(
+    [init_sql],
+    sql,
+    [range1],
+    [range2],
+    ...
+    [param1],
+    [param2]
+)
+
+```
+
+## DUCKDB.EXECX.ASYNC
+
+Asynchronous version of `DUCKDB.EXECX`.
+
 ## DUCKDB.INFO
 
 Returns diagnostic information about the add-in and the currently loaded DuckDB runtime.
@@ -448,7 +486,7 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: v0.3.0
+Add-in version: v1.0.0
 DuckDB version: v1.5.4
 ```
 
