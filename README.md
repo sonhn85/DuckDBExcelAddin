@@ -486,7 +486,7 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: v1.0.0
+Add-in version: v0.4.0
 DuckDB version: v1.5.4
 ```
 
@@ -526,7 +526,7 @@ xlrange(index, sample=n, all_varchar=true)
 | Number | DOUBLE or INTEGER |
 | Boolean | BOOLEAN |
 | Text | VARCHAR |
-| Empty/Null | Ignored during inference |
+| Empty/Error | Ignored during inference |
 
 ### Inference Strategy
 
