@@ -34,13 +34,16 @@ db_lib_loader.o: db_lib_loader.c db_lib_loader.h helper.h config.h
 db_xlrange.o: db_xlrange.c db_xlrange.h helper.h db_lib_loader.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
 
+db_scalar_funcs.o: db_scalar_funcs.c db_scalar_funcs.h db_lib_loader.h helper.h config.h
+	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+
 db_fetch.o: db_fetch.c db_xlrange.h helper.h db_lib_loader.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
 
 DuckDBExcelAddin.o: DuckDBExcelAddin.c DuckDBExcelAddin.h helper.h db_lib_loader.h db_xlrange.h db_fetch.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(FRAMEWRK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
 
-DuckDBExcelAddin.xll: memorypool.o memorymanager.o framewrk.o excel4workaround.o helper.o db_lib_loader.o db_xlrange.o db_fetch.o DuckDBExcelAddin.o
+DuckDBExcelAddin.xll: memorypool.o memorymanager.o framewrk.o excel4workaround.o helper.o db_lib_loader.o db_scalar_funcs.o db_xlrange.o db_fetch.o DuckDBExcelAddin.o
 	gcc -shared -o $@ $^ -lpathcch -lstdc++
 
 xll: DuckDBExcelAddin.xll
