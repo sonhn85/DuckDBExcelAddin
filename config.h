@@ -1,10 +1,18 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+/* Name displayed in Excel Add-In Manager. */
+#ifndef ADDIN_VERSION
+#define ADDIN_MANAGER_TEXT          "DuckDBExcelAddin(dev)"
+#else
+#define ADDIN_MANAGER_TEXT          "DuckDBExcelAddin"
+#endif
+
 /* Add-in version information. */
 #ifndef ADDIN_VERSION
 #define ADDIN_VERSION               "dev"
 #endif
+
 #define DUCKDB_REQUIRED_VERSION     "1.5.0"
 
 /* DuckDB */
