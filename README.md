@@ -10,11 +10,11 @@ Features:
 - Asynchronous execution
 - Lightweight deployment
 
-> Status: Beta
+> Status: Stable
 >
-> Core functionality is implemented and suitable for day-to-day
-> use. New features and improvements are still being added, but
-> compatibility with existing workbooks is a priority.
+> Core functionality is considered stable and suitable for
+> production use. Future releases will prioritize backward
+> compatibility with existing workbooks.
 
 ---
 
@@ -41,6 +41,8 @@ Features:
 ✅ DuckDB 1.5+
 
 ✅ Runtime DuckDB DLL upgrade
+
+✅ Included test and example workbook
 
 ---
 
@@ -398,6 +400,17 @@ Open the XLL directly, or add it through the Excel Add-ins dialog.
 
 ---
 
+# Examples and Tests
+
+The release package includes a workbook containing examples and
+regression tests for the major features of DuckDBExcelAddin.
+
+```text
+examples\test_cases.xlsx
+```
+
+---
+
 # Worksheet Function References
 
 ## DUCKDB.EXEC
@@ -486,7 +499,7 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: v0.4.0
+Add-in version: v1.0.0
 DuckDB version: v1.5.4
 ```
 
