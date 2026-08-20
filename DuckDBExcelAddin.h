@@ -70,6 +70,9 @@ DLLEXPORT int WINAPI xlAutoRemove(void);
 /* Release memory previously returned to Excel. */
 DLLEXPORT void WINAPI xlAutoFree12(LPXLOPER12 pxFree);
 
+/* Provide the Add-In Manager with information */
+DLLEXPORT LPXLOPER12 WINAPI xlAddInManagerInfo12(LPXLOPER12 pxAction);
+
 /*
  * Execute SQL statements synchronously
  *
