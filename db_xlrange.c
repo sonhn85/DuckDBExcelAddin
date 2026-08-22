@@ -11,13 +11,12 @@
 #include "db_lib_loader.h"
 #include "config.h"
 
-#define ERR_MSG_XLRANGE_INTERNAL            "Internal error"
-#define ERR_MSG_XLRANGE_INVALID_PARAM       "Invalid parameter" 
-#define ERR_MSG_XLRANGE_EMPTY_COL_NAME      "Column name is empty"
-#define ERR_MSG_XLRANGE_INVALID_COL_NAME    "Invalid column name"
-#define ERR_MSG_XLRANGE_DOUBLE              "Failed to convert to DOUBLE"
-#define ERR_MSG_XLRANGE_INT                 "Failed to convert to INTEGER"
-#define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert to VARCHAR"
+#define ERR_MSG_XLRANGE_INTERNAL            "An internal error occurred."
+#define ERR_MSG_XLRANGE_INVALID_PARAM       "Invalid parameter."
+#define ERR_MSG_XLRANGE_INVALID_COL_NAME    "Invalid column name. Column names must be non-empty and valid DuckDB identifiers."
+#define ERR_MSG_XLRANGE_DOUBLE              "Failed to convert value to DOUBLE."
+#define ERR_MSG_XLRANGE_INT                 "Failed to convert value to INTEGER."
+#define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
 
 typedef struct xlrange_context_t
 {
@@ -336,15 +335,8 @@ static void xlrange_bind(duckdb_bind_info info)
         char *colname = NULL;
         duckdb_logical_type lt_col = NULL;
 
-        if (LPXLOPER12_TYPE(p) != xltypeStr)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-            goto bind_column_failure;
-        }
-
-        bool empty_name = is_null_or_whitespace_xlstr(p->val.str);
-
-        if (empty_name
+        if (LPXLOPER12_TYPE(p) != xltypeStr
+            || is_null_or_whitespace_xlstr(p->val.str)
             || (xlstr_to_utf8(&colname, p->val.str, NULL) == 0)
             || !colname)
         {
@@ -355,9 +347,7 @@ static void xlrange_bind(duckdb_bind_info info)
                 NULL,
                 (long long)i,
                 -1,
-                (empty_name) 
-                    ? ERR_MSG_XLRANGE_EMPTY_COL_NAME
-                    : ERR_MSG_XLRANGE_INVALID_COL_NAME
+                ERR_MSG_XLRANGE_INVALID_COL_NAME
             );
             goto bind_column_failure;
         }
