@@ -10,21 +10,20 @@
 #include "db_xlrange.h"
 #include "db_scalar_funcs.h"
 
-#define ERR_MSG_INTERNAL                      "Error: Internal error"
-#define ERR_MSG_INVALID_PARAM                 "Error: Invalid parameters"
-#define ERR_MSG_PARAM_BIND_FAILURE            "Error: Parameter binding failed"
-#define ERR_MSG_DUCKDB_INIT_FAILURE           "Error: DuckDB initialization failed"
-#define ERR_MSG_TEXT_CONVERSION_FAILURE       "Error: Text conversion failed"
-#define ERR_MSG_SQL_EMPTY                     "Error: Empty statement"
-#define ERR_MSG_STMT_PREPARE_FAILURE          "Error: Statement preparation failed"
-#define ERR_MSG_STMT_EXEC_FAILURE             "Error: Statement execution failed"
-#define ERR_MSG_INIT_SQL_EXEC_FAILURE         "Error: Initialization SQL execution failed"
-#define ERR_MSG_RESULT_FETCH_FAILURE          "Error: Result fetch failed"
-#define ERR_MSG_XLRANGE_REGISTER_FAILURE      "Error: xlrange() registration failed"
-#define ERR_MSG_EXTRACT_STMTS_FAILURE         "Error: Statement parsing failed"
-#define ERR_MSG_BIND_UNSUPPORTED              "Error: QUERY mode does not support parameters"
-#define ERR_MSG_INFO_NA                       "Error: Failed to get add-in info"
-#define ERR_MSG_SCALAR_FUNCS_REGISTER_FAILURE "Error: Scalar functions registration failed"
+#define ERR_MSG_INTERNAL                      "Error: An internal error occurred."
+#define ERR_MSG_INVALID_PARAM                 "Error: Invalid parameters."
+#define ERR_MSG_PARAM_BIND_FAILURE            "Error: Parameter binding failed."
+#define ERR_MSG_DUCKDB_INIT_FAILURE           "Error: DuckDB initialization failed."
+#define ERR_MSG_TEXT_CONVERSION_FAILURE       "Error: Text conversion failed."
+#define ERR_MSG_SQL_EMPTY                     "Error: Empty sql."
+#define ERR_MSG_STMT_PREPARE_FAILURE          "Error: Statement preparation failed."
+#define ERR_MSG_STMT_EXEC_FAILURE             "Error: Statement execution failed."
+#define ERR_MSG_INIT_SQL_EXEC_FAILURE         "Error: Initialization SQL execution failed."
+#define ERR_MSG_RESULT_FETCH_FAILURE          "Error: Result fetch failed."
+#define ERR_MSG_XLRANGE_REGISTER_FAILURE      "Error: xlrange registration failed."
+#define ERR_MSG_EXTRACT_STMTS_FAILURE         "Error: Statement parsing failed."
+#define ERR_MSG_INFO                          "Error: Failed to get add-in info."
+#define ERR_MSG_SCALAR_FUNCS_REGISTER_FAILURE "Error: Scalar functions registration failed."
 
 static HMODULE g_duckdb_dll = NULL;
 
@@ -870,7 +869,7 @@ LPXLOPER12 addin_info(void)
     );
 
     if (n < 0 || (size_t)n >= sizeof(buf))
-        return make_string_cell(ERR_MSG_INFO_NA);
+        return make_string_cell(ERR_MSG_INFO);
 
     return make_string_cell(buf);
 }
