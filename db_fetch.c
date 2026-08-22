@@ -10,12 +10,11 @@
 #include "helper.h"
 #include "config.h"
 
-#define ERR_MSG_INTERNAL            "An internal error occurred"
-#define ERR_MSG_ALLOC               "Memory allocation failed"
-#define ERR_MSG_INVALID_COL_NAME    "Invalid column name"
-#define ERR_MSG_NO_DATA             "Statement returned no data"
-#define ERR_MSG_EXCEED_SIZE_LIMIT   "Excel row or column limit exceeded"
-#define ERR_MSG_UNSUPPORTED_TYPE    "Unsupported DuckDB type. Convert the value to VARCHAR before returning it to Excel"
+#define ERR_MSG_INTERNAL            "An internal error occurred."
+#define ERR_MSG_ALLOC               "Memory allocation failed."
+#define ERR_MSG_NO_DATA             "Statement returned no data."
+#define ERR_MSG_EXCEED_SIZE_LIMIT   "Excel row or column limit exceeded."
+#define ERR_MSG_UNSUPPORTED_TYPE    "Unsupported DuckDB type. Convert the value to VARCHAR before returning it to Excel."
 
 void free_and_reset_chunk_list(chunk_list *chunklist)
 {
@@ -168,7 +167,7 @@ int fetch_chunks(
                 buf_size,
                 "fetching data",
                 NULL,
-                ERR_MSG_INVALID_COL_NAME
+                ERR_MSG_INTERNAL
             );
             goto fail;
         }
@@ -692,7 +691,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
                 sizeof(errmsg),
                 "writing output",
                 col_name,
-                ERR_MSG_INVALID_COL_NAME
+                ERR_MSG_INTERNAL
             );
             goto rollback;
         }
