@@ -35,6 +35,7 @@ check_version:
         goto reset;
 
     wchar_t msg[MSG_MAX_LENGTH];
+	msg[0] = L'\0';
 
     if (DUCKDB_LIBRARY_VERSION)
     {
@@ -73,7 +74,7 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
     if (!caller_path || !dllname)
         return NULL;
 
-    int path_len = (unsigned short)caller_path[0];
+    size_t path_len = caller_path[0];
 
     if ((path_len == 0) || (path_len >= MAX_PATH))
         goto fail;
