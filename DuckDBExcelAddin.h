@@ -50,7 +50,11 @@ X(exec_sync_no_init,    L"DUCKDB.EXEC",        TYPE_STRING(L"QD%", L"$"),    HEL
 X(exec_async_no_init,   L"DUCKDB.EXEC.ASYNC",  TYPE_STRING(L">XD%", L"$"),   HELP_TEXT_NO_INIT,   FUNCTION_CATEGORY) \
 X(addin_info,           L"DUCKDB.INFO",        L"Q",                         L"",                 FUNCTION_CATEGORY) \
 X(exec_sync_with_init,  L"DUCKDB.EXECX",       TYPE_STRING(L"QD%D%", L"$"),  HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY) \
-X(exec_async_with_init, L"DUCKDB.EXECX.ASYNC", TYPE_STRING(L">XD%D%", L"$"), HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY)
+X(exec_async_with_init, L"DUCKDB.EXECX.ASYNC", TYPE_STRING(L">XD%D%", L"$"), HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_sync_no_init,    L"DUCKDB.EXECA",        TYPE_STRING(L"QD%D%", L"$"),    HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_async_no_init,   L"DUCKDB.EXECA.ASYNC",  TYPE_STRING(L">XD%D%", L"$"),   HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_sync_with_init,  L"DUCKDB.EXECAX",       TYPE_STRING(L"QD%D%D%", L"$"),  HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_async_with_init, L"DUCKDB.EXECAX.ASYNC", TYPE_STRING(L">XD%D%D%", L"$"), HELP_TEXT_NO_INIT, FUNCTION_CATEGORY)
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,7 +120,7 @@ DLLEXPORT LPXLOPER12 addin_info(void);
  * Returns the statement result as an XLOPER12 value.
  */
 DLLEXPORT LPXLOPER12 WINAPI exec_sync_with_init(
-    const wchar_t *pre_sql,
+    const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
@@ -134,7 +138,75 @@ DLLEXPORT LPXLOPER12 WINAPI exec_sync_with_init(
  */
 DLLEXPORT void WINAPI exec_async_with_init(
     LPXLOPER12 asyncHandle,
-    const wchar_t *pre_sql,
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
+
+/*
+ * Attach an database file then
+ * Execute SQL statements synchronously
+ *
+ * Supports parameter binding.
+ *
+ * Returns the statement result as an XLOPER12 value.
+ */
+DLLEXPORT LPXLOPER12 WINAPI attach_and_exec_sync_no_init(
+	const wchar_t *db_path,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
+
+/*
+ * Attach an database file then
+ * Execute SQL statements asynchronously
+ *
+ * Supports parameter binding.
+ *
+ * Results are delivered through Excel's asynchronous
+ * worksheet function mechanism.
+ */
+DLLEXPORT void WINAPI attach_and_exec_async_no_init(
+    LPXLOPER12 asyncHandle,
+	const wchar_t *db_path,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
+
+/*
+ * Attach an database file then
+ * Execute SQL statements synchronously.
+ *
+ * An optional initialization SQL script may be executed
+ * before the main statement.
+ *
+ * Supports parameter binding.
+ *
+ * Returns the statement result as an XLOPER12 value.
+ */
+DLLEXPORT LPXLOPER12 WINAPI attach_and_exec_sync_with_init(
+	const wchar_t *db_path,
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST
+);
+
+/*
+ * Attach an database file then
+ * Execute SQL statements asynchronously.
+ *
+ * An optional initialization SQL script may be executed
+ * before the main statement.
+ *
+ * Supports parameter binding.
+ *
+ * Results are delivered through Excel's asynchronous
+ * worksheet function mechanism.
+ */
+DLLEXPORT void WINAPI attach_and_exec_async_with_init(
+    LPXLOPER12 asyncHandle,
+	const wchar_t *db_path,
+    const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
