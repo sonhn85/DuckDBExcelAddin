@@ -114,6 +114,7 @@ If you want to use database file as default database like xlDuckDB, DuckDBExcelA
 "Path\db.duckdb",
 1001
 )
+```
 
 ## Bind Excel values to SQL
 
