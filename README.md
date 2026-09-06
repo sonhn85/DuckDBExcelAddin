@@ -688,6 +688,7 @@ DuckDB composite types such as:
 - STRUCT
 - MAP
 - UNION
+- VARIANT
 
 are currently **not returned directly to Excel**.
 
