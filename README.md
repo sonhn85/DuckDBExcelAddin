@@ -48,7 +48,7 @@ Features:
 
 # Why This Project?
 
-This project was inspired by **xlDuckDB**, which demonstrated integration between DuckDB and Microsoft Excel through an XLL add-in.
+This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb), which demonstrated integration between DuckDB and Microsoft Excel through an XLL add-in.
 
 The design goals of this project are slightly different.
 
