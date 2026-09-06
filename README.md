@@ -491,7 +491,7 @@ used to define reusable macros, views, or other helper objects.
 
 Asynchronous version of `DUCKDB.EXECX`.
 
-## DUCKDB.EXECA
+## DUCKDB.EXECA (from 1.1.0)
 
 Uses database file as default database then executes SQL statements.
 
@@ -520,11 +520,11 @@ Uses database file as default database then executes SQL statements.
 
 Supports only one database file per formula.
 
-## DUCKDB.EXECA.ASYNC
+## DUCKDB.EXECA.ASYNC (from 1.1.0)
 
 Asynchronous version of `DUCKDB.EXECA`.
 
-## DUCKDB.EXECAX
+## DUCKDB.EXECAX (from 1.1.0)
 
 DUCKDB.EXECA with initialization SQL.
 
@@ -543,7 +543,7 @@ DUCKDB.EXECA with initialization SQL.
 )
 ```
 
-## DUCKDB.EXECAX.ASYNC
+## DUCKDB.EXECAX.ASYNC (from 1.1.0)
 
 Asynchronous version of `DUCKDB.EXECAX`.
 
