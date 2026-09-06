@@ -48,18 +48,19 @@ Features:
 
 # Why This Project?
 
-This project was inspired by **xlduckdb**, which demonstrated integration between DuckDB and Microsoft Excel through an XLL add-in.
+This project was inspired by **xlDuckDB**, which demonstrated integration between DuckDB and Microsoft Excel through an XLL add-in.
 
 The design goals of this project are slightly different.
 
-## Comparison with xlduckdb
+## Comparison with xlDuckDB
 
-| Feature | DuckDBExcelAddin | xlduckdb |
+| Feature | DuckDBExcelAddin | xlDuckDB |
 |----------|----------|----------|
 | Native Excel formula experience | ✅ | ✅ |
 | Dynamic array (spill) results | ✅ | ✅ |
 | Query external files | ✅ | ✅ |
 | Query Excel ranges | ✅ | ✅ |
+| Use database file as default database | ✅ | ✅ |
 | Column type sampling option | ✅ | ❌ |
 | Bind Excel values to SQL | ✅ | ❌ |
 | Helpers for Excel date and time values | ✅ | ❌ |
@@ -72,7 +73,7 @@ The design goals of this project are slightly different.
 
 ## Query Excel ranges
 
-Similar to xlduckdb, Excel ranges are directly exposed as DuckDB tables.
+Similar to xlDuckDB, Excel ranges are directly exposed as DuckDB tables.
 
 ```excel
 =DUCKDB.EXEC(
@@ -102,6 +103,17 @@ A1:D100
 A1:D100
 )
 ```
+
+If you want to use database file as default database like xlDuckDB, DuckDBExcelAddin (from 1.1.0) also supports:
+
+```excel
+=DUCKDB.EXECA(
+"SELECT *
+ FROM table_name
+ WHERE cif = ?;",
+"Path\db.duckdb",
+1001
+)
 
 ## Bind Excel values to SQL
 
@@ -221,7 +233,7 @@ Benefits:
 - Fast startup
 - Small deployment footprint
 
-Deployment typically consists of:
+Deployment consists of:
 
 ```text
 DuckDBExcelAddIn.xll
@@ -356,7 +368,7 @@ rename to:
 xbool
 ```
 
-and update the corresponding references in FRAMEWRK.C.
+and update the corresponding references in `FRAMEWRK.C`.
 
 This modification only affects local compilation and does not affect runtime behavior.
 
@@ -420,7 +432,7 @@ Executes one or more SQL statements.
 ### Supports
 
 - Query Excel ranges via `xlrange()`
-- Bind Excel values to SQL (`?`)
+- Bind Excel values to SQL (`?`, `$1`, `$2`...)
 
 ### Syntax
 
@@ -473,12 +485,67 @@ used to define reusable macros, views, or other helper objects.
     [param1],
     [param2]
 )
-
 ```
 
 ## DUCKDB.EXECX.ASYNC
 
 Asynchronous version of `DUCKDB.EXECX`.
+
+## DUCKDB.EXECA
+
+Uses database file as default database then executes SQL statements.
+
+### Syntax
+
+```excel
+=DUCKDB.EXEC(
+	[db_file_path],
+    sql,
+    [range1],
+    [range2],
+    ...,
+    [param1],
+    [param2]
+)
+```
+
+### Advantages
+
+- Avoids `ATTACH` and `USE`.
+- Works with `INSERT`, `UPDATE`, `DELETE`, views.
+- Avoids multiple `read_duckdb()` for multiple tables in one database file.
+- Supports `xlrange` and parameter binding also.
+
+### Disadvantages
+
+Supports only one database file per formula.
+
+## DUCKDB.EXECA.ASYNC
+
+Asynchronous version of `DUCKDB.EXECA`.
+
+## DUCKDB.EXECAX
+
+DUCKDB.EXECA with initialization SQL.
+
+### Syntax
+
+```excel
+=DUCKDB.EXECX(
+    [db_file_path],
+    [init_sql],
+    sql,
+    [range1],
+    [range2],
+    ...
+    [param1],
+    [param2]
+)
+```
+
+## DUCKDB.EXECAX.ASYNC
+
+Asynchronous version of `DUCKDB.EXECAX`.
 
 ## DUCKDB.INFO
 
@@ -499,8 +566,8 @@ This function is useful for:
 ### Example Result
 
 ```text
-Add-in version: v1.0.0
-DuckDB version: v1.5.4
+Add-in version: v1.1.0
+DuckDB version: v1.5.5
 ```
 
 ### Notes
@@ -547,7 +614,7 @@ xlrange(index, sample=n, all_varchar=true)
 
 2. Sample the remaining rows up to the configured sample limit.
 
-3. If incompatible types are encountered, fall back to VARCHAR.
+3. If incompatible types are encountered, raise number error or fall back to VARCHAR.
 
 # DuckDB Scalar Function References
 
@@ -752,7 +819,7 @@ DuckDB is an extraordinary project that brings tremendous value to local and off
 
 This project would not exist without the work of the DuckDB community.
 
-Special thanks to xlduckdb, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
+Special thanks to xlDuckDB, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
 
 Additional thanks to:
 
