@@ -21,6 +21,17 @@
 typedef const char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_library_version))(void);
 
 /* Database lifecycle */
+typedef duckdb_instance_cache (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_instance_cache))();
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_or_create_from_cache))(
+	duckdb_instance_cache instance_cache,
+	const char *path,
+	duckdb_database *out_database,
+	duckdb_config config,
+	char **out_error
+);
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_destroy_instance_cache))(
+	duckdb_instance_cache *instance_cache
+);
 typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_open))(
     const char *path,
     duckdb_database *out_database
@@ -345,12 +356,18 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_scalar_function_set_error))(
     const char *error
 );
 
+/* Other */
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_free))(void *ptr);
+
 /* Version */
 #define DUCKDB_VERSION_FUNCTIONS(X) \
 X(duckdb_library_version, DUCKDB_LIBRARY_VERSION)
 
 /* Database lifecycle */
 #define DUCKDB_DATABASE_FUNCTIONS(X) \
+X(duckdb_create_instance_cache, DUCKDB_CREATE_INSTANCE_CACHE) \
+X(duckdb_get_or_create_from_cache, DUCKDB_GET_OR_CREATE_FROM_CACHE) \
+X(duckdb_destroy_instance_cache, DUCKDB_DESTROY_INSTANCE_CACHE) \
 X(duckdb_open, DUCKDB_OPEN) \
 X(duckdb_close, DUCKDB_CLOSE) \
 X(duckdb_connect, DUCKDB_CONNECT) \
@@ -475,6 +492,10 @@ X(duckdb_destroy_scalar_function, DUCKDB_DESTROY_SCALAR_FUNCTION) \
 X(duckdb_scalar_function_set_function, DUCKDB_SCALAR_FUNCTION_SET_FUNCTION) \
 X(duckdb_scalar_function_set_error, DUCKDB_SCALAR_FUNCTION_SET_ERROR)
 
+/* Other */
+#define DUCKDB_OTHER_FUNCTIONS(X) \
+X(duckdb_free, DUCKDB_FREE)
+
 
 /* Aggregate all dynamically loaded DuckDB APIs.
  * Note: DUCKDB_VERSION_FUNCTIONS must be resolved first so the
@@ -495,7 +516,8 @@ DUCKDB_UTILITY_FUNCTIONS(X) \
 DUCKDB_TABLE_FUNCTION_FUNCTIONS(X) \
 DUCKDB_BIND_API_FUNCTIONS(X) \
 DUCKDB_SCAN_API_FUNCTIONS(X) \
-DUCKDB_SCALAR_API_FUNCTIONS(X)
+DUCKDB_SCALAR_API_FUNCTIONS(X) \
+DUCKDB_OTHER_FUNCTIONS(X)
 
 /* Imported DuckDB function pointers */
 #define DECLARE_DUCKDB_FUNCTION_POINTER(duckdb_name, func) extern TO_DUCKDB_FUNCTION_TYPE(duckdb_name) func;

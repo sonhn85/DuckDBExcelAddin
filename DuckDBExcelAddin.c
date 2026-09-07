@@ -27,9 +27,12 @@
 
 static HMODULE g_duckdb_dll = NULL;
 
+static duckdb_instance_cache db_cache = NULL;
+
 typedef struct async_context_t
 {
-    XLOPER12 asyncHandle;
+    LPXLOPER12 asyncHandle;
+	wchar_t *db_path;
     wchar_t *init_sql;
     wchar_t *sql;
     XLOPER12 *ranges;
@@ -122,17 +125,29 @@ int WINAPI xlAutoOpen(void)
 
     XLL_FUNCTIONS(REGISTER_FUNCTION)
 
-    result = 1;
-
-    goto cleanup;
+    goto init_db_cache;
 
 register_failure:
 
     show_error(hwnd, L"Fail to register worksheet functions");
-
-    xlUnload();
-
     result = 0;
+	goto unload;
+
+init_db_cache:
+
+	db_cache = DUCKDB_CREATE_INSTANCE_CACHE();
+	
+	if (!db_cache) {
+		show_error(hwnd, L"Fail to create database instance cache");
+		result = 0;
+		goto unload;
+	}
+
+	result = 1;
+	goto cleanup;
+
+unload:
+	xlUnload();
 
 cleanup:
 
@@ -144,13 +159,16 @@ cleanup:
 int WINAPI xlAutoRemove(void)
 {
     xlUnload();
+	
+	if (db_cache)
+		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+	
     return 1;
 }
 
 int WINAPI xlAutoClose(void)
 {
-    xlUnload();
-    return 1;
+    return xlAutoRemove();
 }
 
 void WINAPI xlAutoFree12(LPXLOPER12 pxFree)
@@ -280,9 +298,7 @@ static int split_worksheet_params(
         {
             if (xloper12_deep_copy(&ranges_tmp[i], params[i]) == 0)
             {
-                xloper12_free_array(ranges_tmp, i);
-                free(bind_params_tmp);
-                return 0;
+                goto cleanup;
             }
         }
 
@@ -290,9 +306,7 @@ static int split_worksheet_params(
         {
             if (xloper12_deep_copy(&bind_params_tmp[i], params[range_count + i]) == 0)
             {
-                xloper12_free_array(ranges_tmp, range_count);
-                xloper12_free_array(bind_params_tmp, i);
-                return 0;
+                goto cleanup;
             }
         }
     }
@@ -317,6 +331,12 @@ static int split_worksheet_params(
     *nranges = range_count;
 
     return 1;
+
+cleanup:
+    if (ranges_tmp) xloper12_free_array(ranges_tmp, range_count);
+    if (bind_params_tmp) xloper12_free_array(bind_params_tmp, param_count);
+	
+    return 0;
 }
 
 /*
@@ -442,6 +462,7 @@ static int bind_params(
  * The returned value must be released through xlAutoFree12().
  */
 static LPXLOPER12 run_sql_create_range(
+	const wchar_t *db_path,
     const wchar_t *init_sql,
     const wchar_t *sql,
     XLOPER12 *ranges,
@@ -449,7 +470,8 @@ static LPXLOPER12 run_sql_create_range(
     XLOPER12 *params,
     size_t nparams)
 {
-    char *sql_utf8 = NULL;
+    char *db_path_utf8 = NULL;
+	char *sql_utf8 = NULL;
     char *init_sql_utf8 = NULL;
     duckdb_database db = NULL;
     duckdb_connection con = NULL;
@@ -460,6 +482,7 @@ static LPXLOPER12 run_sql_create_range(
     duckdb_extracted_statements extracted_stmts = NULL;
     idx_t stmt_count = 0;
     LPXLOPER12 result = NULL;
+	bool from_cache = false;
 
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
@@ -471,17 +494,30 @@ static LPXLOPER12 run_sql_create_range(
     }
 
     if (xlstr_to_utf8(&sql_utf8, sql, NULL) == 0
-        || (init_sql && xlstr_to_utf8(&init_sql_utf8, init_sql, NULL) == 0))
+        || (!is_null_or_whitespace_xlstr(init_sql) && xlstr_to_utf8(&init_sql_utf8, init_sql, NULL) == 0)
+		|| (!is_null_or_whitespace_xlstr(db_path) && xlstr_to_utf8(&db_path_utf8, db_path, NULL) == 0))
     {
         result = make_string_cell(ERR_MSG_TEXT_CONVERSION_FAILURE);
         goto cleanup;
     }
-
-    if (DUCKDB_OPEN(NULL, &db) != DuckDBSuccess)
-    {
-        result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
-        goto cleanup;
-    }
+  
+	if (is_null_or_whitespace_xlstr(db_path))
+	{
+        if (DUCKDB_OPEN(NULL, &db) != DuckDBSuccess)
+        {
+            result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
+            goto cleanup;
+        }
+	} else {
+        char *msg;
+		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+        {
+            result = make_string_cell(msg);
+            DUCKDB_FREE(msg);
+            goto cleanup;
+        }
+        from_cache = true;
+	}
 
     if (DUCKDB_CONNECT(db, &con) != DuckDBSuccess)
     {
@@ -637,6 +673,8 @@ cleanup:
     if (xldatetime_func)
         DUCKDB_DESTROY_SCALAR_FUNCTION(&xldatetime_func);
 
+	free(db_path_utf8);
+
     free(sql_utf8);
 
     free(init_sql_utf8);
@@ -644,13 +682,23 @@ cleanup:
     if (con)
         DUCKDB_DISCONNECT(&con);
     
-    if (db)
+    if (db && !from_cache)
         DUCKDB_CLOSE(&db);
 
     if (!result)
         result = make_string_cell(ERR_MSG_INTERNAL);
     
     return result;
+}
+
+static void free_async_context(async_context_t *ctx) {
+    if (!ctx) return;
+    xloper12_free_array(ctx->params, ctx->nparams);
+    xloper12_free_array(ctx->ranges, ctx->nranges);
+    free(ctx->db_path);
+    free(ctx->sql);
+    free(ctx->init_sql);
+    free(ctx);
 }
 
 /*
@@ -672,6 +720,7 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
         xl_result = make_string_cell(ctx->err_msg);
     else 
         xl_result = run_sql_create_range(
+			ctx->db_path,
             ctx->init_sql,
             ctx->sql,
             ctx->ranges,
@@ -684,18 +733,14 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
         xlAsyncReturn,
         NULL,
         2,
-        &ctx->asyncHandle,
+        ctx->asyncHandle,
         xl_result
     ) != xlretSuccess)
     {
         xloper12_free(xl_result);
     }
 
-    xloper12_free_array(ctx->params, ctx->nparams);
-    xloper12_free_array(ctx->ranges, ctx->nranges);
-    free(ctx->sql);
-    free(ctx->init_sql);
-    free(ctx);
+    free_async_context(ctx);
 
     return 0;
 }
@@ -706,6 +751,7 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
  */
 static void exec_async(
     LPXLOPER12 asyncHandle,
+	const wchar_t *db_path,
     const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
@@ -719,7 +765,11 @@ static void exec_async(
     if (!ctx)
         return;
 
-    ctx->asyncHandle = *asyncHandle;
+    ctx->asyncHandle = asyncHandle;
+
+    size_t db_path_len = 0;
+
+    wchar_t *db_path_copy = NULL;
 
     size_t sql_len = sql[0];
 
@@ -728,6 +778,13 @@ static void exec_async(
     size_t init_sql_len = 0;
 
     wchar_t *init_sql_copy = NULL;
+
+    if (db_path)
+    {
+        db_path_len = db_path[0];
+
+        db_path_copy = malloc((db_path_len + 1)*sizeof(*db_path_copy));
+    }
     
     if (init_sql)
     {
@@ -736,8 +793,11 @@ static void exec_async(
         init_sql_copy = malloc((init_sql_len + 1)*sizeof(*init_sql_copy));
     }
 
-    if (!sql_copy || (init_sql && !init_sql_copy))
+    if (!sql_copy
+	    || (init_sql && !init_sql_copy)
+		|| (db_path && !db_path_copy))
     {
+		free(db_path_copy);
         free(sql_copy);
         free(init_sql_copy);
 
@@ -751,6 +811,10 @@ static void exec_async(
     if (init_sql)
         wmemcpy(init_sql_copy, init_sql, init_sql_len + 1);
 
+    if (db_path)
+        wmemcpy(db_path_copy, db_path, db_path_len + 1);
+
+	ctx->db_path = db_path_copy;
     ctx->sql = sql_copy;
     ctx->init_sql = init_sql_copy;
 
@@ -800,21 +864,18 @@ fire_thread:
             xlAsyncReturn,
             NULL,
             2,
-            &ctx->asyncHandle,
+            ctx->asyncHandle,
             err
         );
 
-        xloper12_free_array(ctx->params, ctx->nparams);
-        xloper12_free_array(ctx->ranges, ctx->nranges);
-        free(ctx->sql);
-        free(ctx->init_sql);
-        free(ctx);
+        free_async_context(ctx);
     }
 
     return;
 }
 
 static LPXLOPER12 exec_sync(
+	const wchar_t *db_path,
     const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
@@ -835,6 +896,7 @@ static LPXLOPER12 exec_sync(
         return make_string_cell(ERR_MSG_INVALID_PARAM);
 
     LPXLOPER12 xl_result = run_sql_create_range(
+		db_path,
         init_sql,
         sql,
         ranges,
@@ -880,6 +942,7 @@ LPXLOPER12 WINAPI exec_sync_no_init(
 {
     return exec_sync(
         NULL,
+		NULL,
         sql,
         WORKSHEET_PARAM_LIST
     );
@@ -892,6 +955,7 @@ void WINAPI exec_async_no_init(
 {
     exec_async(
         asyncHandle,
+		NULL,
         NULL,
         sql,
         WORKSHEET_PARAM_LIST
@@ -904,6 +968,7 @@ LPXLOPER12 WINAPI exec_sync_with_init(
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
     return exec_sync(
+		NULL,
         init_sql,
         sql,
         WORKSHEET_PARAM_LIST
@@ -918,6 +983,65 @@ void WINAPI exec_async_with_init(
 {
     exec_async(
         asyncHandle,
+		NULL,
+        init_sql,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+LPXLOPER12 WINAPI attach_and_exec_sync_no_init(
+	const wchar_t *db_path,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    return exec_sync(
+	    db_path,
+        NULL,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+void WINAPI attach_and_exec_async_no_init(
+    LPXLOPER12 asyncHandle,
+	const wchar_t *db_path,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    exec_async(
+        asyncHandle,
+		db_path,
+        NULL,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+LPXLOPER12 WINAPI attach_and_exec_sync_with_init(
+	const wchar_t *db_path,
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    return exec_sync(
+		db_path,
+        init_sql,
+        sql,
+        WORKSHEET_PARAM_LIST
+    );
+}
+
+void WINAPI attach_and_exec_async_with_init(
+    LPXLOPER12 asyncHandle,
+	const wchar_t *db_path,
+    const wchar_t *init_sql,
+    const wchar_t *sql,
+    WORKSHEET_PARAM_AND_TYPE_LIST)
+{
+    exec_async(
+        asyncHandle,
+		db_path,
         init_sql,
         sql,
         WORKSHEET_PARAM_LIST

@@ -129,7 +129,7 @@ int utf8_to_xlstr(wchar_t **dest, const char *src, int n)
         0
     );
 
-    if (wchar_count == 0)
+    if (wchar_count <= 0)
         return 0;
 
     /* Excel strings are limited to XLSTR_MAX_LEN characters */
@@ -178,10 +178,7 @@ LPXLOPER12 make_string_cell(const char *utf8str)
     wchar_t *xlstr = NULL;
 
     if (utf8_to_xlstr(&xlstr, utf8str, -1) == 0 || !xlstr)
-    {
-        free(xlstr);
         return NULL;
-    }
 
     LPXLOPER12 result = malloc(sizeof(*result));
 
