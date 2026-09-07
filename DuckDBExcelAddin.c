@@ -29,6 +29,9 @@ static HMODULE g_duckdb_dll = NULL;
 
 static duckdb_instance_cache db_cache = NULL;
 
+static volatile LONG unloading = 0;
+static volatile LONG active_workers = 0;
+
 typedef struct async_context_t
 {
     LPXLOPER12 asyncHandle;
@@ -158,10 +161,15 @@ cleanup:
 
 int WINAPI xlAutoRemove(void)
 {
-    xlUnload();
-	
+    InterlockedExchange(&unloading, 1);
+
+    while (InterlockedCompareExchange(&active_workers, 0, 0) != 0)
+        Sleep(10);
+
 	if (db_cache)
 		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+
+    xlUnload();
 	
     return 1;
 }
@@ -482,7 +490,6 @@ static LPXLOPER12 run_sql_create_range(
     duckdb_extracted_statements extracted_stmts = NULL;
     idx_t stmt_count = 0;
     LPXLOPER12 result = NULL;
-	bool from_cache = false;
 
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
@@ -516,7 +523,6 @@ static LPXLOPER12 run_sql_create_range(
             DUCKDB_FREE(msg);
             goto cleanup;
         }
-        from_cache = true;
 	}
 
     if (DUCKDB_CONNECT(db, &con) != DuckDBSuccess)
@@ -682,7 +688,7 @@ cleanup:
     if (con)
         DUCKDB_DISCONNECT(&con);
     
-    if (db && !from_cache)
+    if (db)
         DUCKDB_CLOSE(&db);
 
     if (!result)
@@ -742,6 +748,8 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
 
     free_async_context(ctx);
 
+    InterlockedDecrement(&active_workers);
+
     return 0;
 }
 
@@ -756,6 +764,8 @@ static void exec_async(
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
+    if (InterlockedCompareExchange(&unloading, 0, 0))
+        return;
 
     if (!asyncHandle || !sql)
         return;
@@ -843,6 +853,8 @@ static void exec_async(
 
 fire_thread:
 
+    InterlockedIncrement(&active_workers);
+
     HANDLE thread = (HANDLE)_beginthreadex(
         NULL,
         0,
@@ -858,6 +870,8 @@ fire_thread:
     }
     else 
     {
+        InterlockedDecrement(&active_workers);
+        
         LPXLOPER12 err = make_string_cell(ERR_MSG_INTERNAL);
 
         Excel12f(
