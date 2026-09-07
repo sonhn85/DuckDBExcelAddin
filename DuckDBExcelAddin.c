@@ -151,9 +151,6 @@ unload:
 
 cleanup:
 
-	if (db_cache)
-		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
-
     Excel12f(xlFree, 0, 1, &xllPath); 
 
     return result;
@@ -497,28 +494,30 @@ static LPXLOPER12 run_sql_create_range(
     }
 
     if (xlstr_to_utf8(&sql_utf8, sql, NULL) == 0
-        || (init_sql && xlstr_to_utf8(&init_sql_utf8, init_sql, NULL) == 0)
-		|| (db_path && xlstr_to_utf8(&db_path_utf8, db_path, NULL) == 0))
+        || (!is_null_or_whitespace_xlstr(init_sql) && xlstr_to_utf8(&init_sql_utf8, init_sql, NULL) == 0)
+		|| (!is_null_or_whitespace_xlstr(db_path) && xlstr_to_utf8(&db_path_utf8, db_path, NULL) == 0))
     {
         result = make_string_cell(ERR_MSG_TEXT_CONVERSION_FAILURE);
         goto cleanup;
     }
-
-	duckdb_state state;
-	if (db_path_utf8)
+  
+	if (is_null_or_whitespace_xlstr(db_path))
 	{
-		state = DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, NULL);
-		if (state == DuckDBSuccess)
-			from_cache = true;
+        if (DUCKDB_OPEN(NULL, &db) != DuckDBSuccess)
+        {
+            result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
+            goto cleanup;
+        }
 	} else {
-		state = DUCKDB_OPEN(NULL, &db);
+        char *msg;
+		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+        {
+            result = make_string_cell(msg);
+            DUCKDB_FREE(msg);
+            goto cleanup;
+        }
+        from_cache = true;
 	}
-	if (state != DuckDBSuccess)
-	{
-        result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
-        goto cleanup;
-	}
-
 
     if (DUCKDB_CONNECT(db, &con) != DuckDBSuccess)
     {
