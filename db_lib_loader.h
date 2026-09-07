@@ -356,6 +356,9 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_scalar_function_set_error))(
     const char *error
 );
 
+/* Other */
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_free))(void *ptr);
+
 /* Version */
 #define DUCKDB_VERSION_FUNCTIONS(X) \
 X(duckdb_library_version, DUCKDB_LIBRARY_VERSION)
@@ -489,6 +492,10 @@ X(duckdb_destroy_scalar_function, DUCKDB_DESTROY_SCALAR_FUNCTION) \
 X(duckdb_scalar_function_set_function, DUCKDB_SCALAR_FUNCTION_SET_FUNCTION) \
 X(duckdb_scalar_function_set_error, DUCKDB_SCALAR_FUNCTION_SET_ERROR)
 
+/* Other */
+#define DUCKDB_OTHER_FUNCTIONS(X) \
+X(duckdb_free, DUCKDB_FREE)
+
 
 /* Aggregate all dynamically loaded DuckDB APIs.
  * Note: DUCKDB_VERSION_FUNCTIONS must be resolved first so the
@@ -509,7 +516,8 @@ DUCKDB_UTILITY_FUNCTIONS(X) \
 DUCKDB_TABLE_FUNCTION_FUNCTIONS(X) \
 DUCKDB_BIND_API_FUNCTIONS(X) \
 DUCKDB_SCAN_API_FUNCTIONS(X) \
-DUCKDB_SCALAR_API_FUNCTIONS(X)
+DUCKDB_SCALAR_API_FUNCTIONS(X) \
+DUCKDB_OTHER_FUNCTIONS(X)
 
 /* Imported DuckDB function pointers */
 #define DECLARE_DUCKDB_FUNCTION_POINTER(duckdb_name, func) extern TO_DUCKDB_FUNCTION_TYPE(duckdb_name) func;
