@@ -764,9 +764,6 @@ static void exec_async(
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
-    if (InterlockedCompareExchange(&unloading, 0, 0))
-        return;
-
     if (!asyncHandle || !sql)
         return;
 
@@ -853,7 +850,20 @@ static void exec_async(
 
 fire_thread:
 
+    if (InterlockedCompareExchange(&unloading, 0, 0))
+    {
+        free_async_context(ctx);
+        return;
+    }
+
     InterlockedIncrement(&active_workers);
+
+    if (InterlockedCompareExchange(&unloading, 0, 0))
+    {
+        InterlockedDecrement(&active_workers);
+        free_async_context(ctx);
+        return;
+    }
 
     HANDLE thread = (HANDLE)_beginthreadex(
         NULL,
