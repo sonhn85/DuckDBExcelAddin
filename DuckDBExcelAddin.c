@@ -166,8 +166,8 @@ int WINAPI xlAutoRemove(void)
     while (InterlockedCompareExchange(&active_workers, 0, 0) != 0)
         Sleep(10);
 
-	if (db_cache)
-		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+	  if (db_cache)
+		    DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
 
     xlUnload();
 	
@@ -490,6 +490,7 @@ static LPXLOPER12 run_sql_create_range(
     duckdb_extracted_statements extracted_stmts = NULL;
     idx_t stmt_count = 0;
     LPXLOPER12 result = NULL;
+	bool from_cache = false;
 
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
@@ -517,7 +518,7 @@ static LPXLOPER12 run_sql_create_range(
         }
 	} else {
         char *msg;
-		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+		    if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
         {
             result = make_string_cell(msg);
             DUCKDB_FREE(msg);
@@ -688,7 +689,7 @@ cleanup:
     if (con)
         DUCKDB_DISCONNECT(&con);
     
-    if (db)
+    if (db && !from_cache)
         DUCKDB_CLOSE(&db);
 
     if (!result)
