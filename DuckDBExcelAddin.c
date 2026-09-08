@@ -29,6 +29,9 @@ static HMODULE g_duckdb_dll = NULL;
 
 static duckdb_instance_cache db_cache = NULL;
 
+static volatile LONG unloading = 0;
+static volatile LONG active_workers = 0;
+
 typedef struct async_context_t
 {
     LPXLOPER12 asyncHandle;
@@ -158,10 +161,15 @@ cleanup:
 
 int WINAPI xlAutoRemove(void)
 {
+    InterlockedExchange(&unloading, 1);
+
+    while (InterlockedCompareExchange(&active_workers, 0, 0) != 0)
+        Sleep(10);
+
+	  if (db_cache)
+		    DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+
     xlUnload();
-	
-	if (db_cache)
-		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
 	
     return 1;
 }
@@ -510,13 +518,12 @@ static LPXLOPER12 run_sql_create_range(
         }
 	} else {
         char *msg;
-		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+		    if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
         {
             result = make_string_cell(msg);
             DUCKDB_FREE(msg);
             goto cleanup;
         }
-        from_cache = true;
 	}
 
     if (DUCKDB_CONNECT(db, &con) != DuckDBSuccess)
@@ -742,6 +749,8 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
 
     free_async_context(ctx);
 
+    InterlockedDecrement(&active_workers);
+
     return 0;
 }
 
@@ -756,7 +765,6 @@ static void exec_async(
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST)
 {
-
     if (!asyncHandle || !sql)
         return;
 
@@ -843,6 +851,21 @@ static void exec_async(
 
 fire_thread:
 
+    if (InterlockedCompareExchange(&unloading, 0, 0))
+    {
+        free_async_context(ctx);
+        return;
+    }
+
+    InterlockedIncrement(&active_workers);
+
+    if (InterlockedCompareExchange(&unloading, 0, 0))
+    {
+        InterlockedDecrement(&active_workers);
+        free_async_context(ctx);
+        return;
+    }
+
     HANDLE thread = (HANDLE)_beginthreadex(
         NULL,
         0,
@@ -858,6 +881,8 @@ fire_thread:
     }
     else 
     {
+        InterlockedDecrement(&active_workers);
+        
         LPXLOPER12 err = make_string_cell(ERR_MSG_INTERNAL);
 
         Excel12f(
