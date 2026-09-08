@@ -1,5 +1,8 @@
 # DuckDBExcelAddin
 
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
+
 A native Microsoft Excel XLL add-in for querying Excel ranges with SQL using DuckDB.
 
 Features:
