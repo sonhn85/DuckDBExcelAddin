@@ -438,7 +438,15 @@ examples\test_cases.xlsx
 
 ---
 
-# Worksheet Function References
+# References
+
+## SQL Placeholders
+
+| Type | Support | Note |
+|------|---------|------|
+| Auto incremented `?` | ✅ | |
+| Positional `$n` | ✅ | Must reset index for **each statement** |
+| Named | ❌ | Excel doesn't support name parameter |
 
 ## DUCKDB.EXEC
 
