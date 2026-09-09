@@ -198,7 +198,7 @@ F1:I200,
 )
 ```
 
-### Benefits:
+### Benefits
 
 - Safer query construction
 - No string concatenation in formulas
@@ -302,7 +302,6 @@ The add-in requires:
 Supported versions include:
 
 - Microsoft 365 Excel (64-bit)
-- Excel 2021 (64-bit)
 - Excel 2024 (64-bit)
 
 Older Excel versions without Dynamic Arrays are not supported.
@@ -352,14 +351,12 @@ Contributions and testing reports are welcome.
 
 ```bash
 make EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
-
 ```
 
 ### Release
 
 ```bash
 make ADDIN_VERSION=vx.x.x EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
-
 ```
 
 ## XLCALL.H, FRAMEWRK.C Compatibility
@@ -419,7 +416,7 @@ These functions exist only to satisfy linker requirements introduced by `FRAMEWR
 
 # Installation
 
-Copy:
+Copy these files to the same folder:
 
 ```text
 DuckDBExcelAddIn.xll
