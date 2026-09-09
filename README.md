@@ -445,8 +445,8 @@ examples\test_cases.xlsx
 | Type | Support | Note |
 |------|---------|------|
 | Auto incremented `?` | ✅ | |
-| Positional `$n` | ✅ | Must reset index for **each statement** |
-| Named | ❌ | Excel doesn't support name parameter |
+| Positional `$1` | ✅ | Must reset parameter index for **each statement** |
+| Named `$param` | ❌ | Excel doesn't support named parameter |
 
 ## DUCKDB.EXEC
 
