@@ -519,7 +519,7 @@ static LPXLOPER12 run_sql_create_range(
         }
 	} else {
         char *msg;
-		    if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
         {
             result = make_string_cell(msg);
             DUCKDB_FREE(msg);
