@@ -117,19 +117,37 @@ If you want to use database file as default database like xlDuckDB, DuckDBExcelA
 
 ## Bind Excel values to SQL
 
-Supports DuckDB prepared statements and positional placeholders.
+### Supports DuckDB Placeholders:
+
+* Auto-incremented:
 
 ```excel
 =DUCKDB.EXEC(
 "SELECT *
- FROM xlrange(1)
+ FROM xlrange(?)
  WHERE cif = ?",
 A1:D100,
+1,
 10001
 )
 ```
 
-Use case: Dynamic range selector
+* Positional:
+
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM xlrange($1)
+ WHERE cif = $2",
+A1:D100,
+1,
+10001
+)
+```
+
+### Dynamic SQL Use Case
+
+* Dynamic range selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -143,7 +161,7 @@ F1:I200,
 )
 ```
 
-Use case: Dynamic file reader
+* Dynamic file reader
 
 ```excel
 =DUCKDB.EXEC(
@@ -155,7 +173,7 @@ Use case: Dynamic file reader
 )
 ```
 
-Use case: Dynamic column selector
+* Dynamic column selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -168,7 +186,7 @@ Use case: Dynamic column selector
 )
 ```
 
-Use case: Dynamic table selector
+* Dynamic table selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -180,7 +198,7 @@ Use case: Dynamic table selector
 )
 ```
 
-Benefits:
+### Benefits:
 
 - Safer query construction
 - No string concatenation in formulas
