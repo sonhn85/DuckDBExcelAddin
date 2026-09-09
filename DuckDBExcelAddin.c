@@ -166,8 +166,10 @@ int WINAPI xlAutoRemove(void)
     while (InterlockedCompareExchange(&active_workers, 0, 0) != 0)
         Sleep(10);
 
-	  if (db_cache)
-		    DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+	if (db_cache) {
+		DUCKDB_DESTROY_INSTANCE_CACHE(&db_cache);
+        db_cache = NULL;
+    }
 
     xlUnload();
 	
@@ -490,7 +492,6 @@ static LPXLOPER12 run_sql_create_range(
     duckdb_extracted_statements extracted_stmts = NULL;
     idx_t stmt_count = 0;
     LPXLOPER12 result = NULL;
-	bool from_cache = false;
 
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
@@ -689,7 +690,7 @@ cleanup:
     if (con)
         DUCKDB_DISCONNECT(&con);
     
-    if (db && !from_cache)
+    if (db)
         DUCKDB_CLOSE(&db);
 
     if (!result)
@@ -852,18 +853,14 @@ static void exec_async(
 fire_thread:
 
     if (InterlockedCompareExchange(&unloading, 0, 0))
-    {
-        free_async_context(ctx);
-        return;
-    }
+        goto cleanup;
 
     InterlockedIncrement(&active_workers);
 
     if (InterlockedCompareExchange(&unloading, 0, 0))
     {
         InterlockedDecrement(&active_workers);
-        free_async_context(ctx);
-        return;
+        goto cleanup;
     }
 
     HANDLE thread = (HANDLE)_beginthreadex(
@@ -893,10 +890,15 @@ fire_thread:
             err
         );
 
-        free_async_context(ctx);
+        goto cleanup;
     }
 
     return;
+
+cleanup:
+
+    free_async_context(ctx);
+
 }
 
 static LPXLOPER12 exec_sync(
