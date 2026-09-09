@@ -453,170 +453,25 @@ examples\test_cases.xlsx
 ### All Formulas
 
 | Function | Since | Syntax | Purpose | Equivalent xlDuckDB Formula |
-|----------|--------|--------|---------|---------|--------------|
-| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | Initial | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in memory database | `=DuckDbQuery(sql, , range)` |
-| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | Initial | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in memory database |  |
-| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2])` | Execute SQL using a DuckDB file as the default database | | `=DuckDBQuery(sql, dbfilepath, range)` |
-| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2])` | EXECA plus initialization SQL | |
-| DUCKDB.INFO | 1.1.0 | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information |  |
+|----------|-------|---------|---------|-----------------------------|
+| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | Initial | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
+| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | Initial | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | N/A |
+| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2])` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
+| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2])` | EXECA plus initialization SQL | N/A |
+| DUCKDB.INFO | 1.1.0 | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | N/A |
 
-## DUCKDB.EXEC
-
-Executes one or more SQL statements.
-
-### Supports
-
-- Query Excel ranges via `xlrange()`
-- Bind Excel values to SQL (`?`, `$1`, `$2`...)
-
-### Syntax
-
-```excel
-=DUCKDB.EXEC(
-    sql,
-    [range1],
-    [range2],
-    ...,
-    [param1],
-    [param2]
-)
-```
-
-### Note
+### Usage Note
 
 - Ranges must appear before scalar parameters.
 - When multiple SQL statements are supplied, all statements are
 executed sequentially, but only the result of the final statement
 is returned to Excel.
-
-## DUCKDB.EXEC.ASYNC
-
-Asynchronous version of `DUCKDB.EXEC`.
-
-### Advantages
-
-Long-running queries do not block Excel recalculation.
-
-### Disadvantages
-
-Introduces overhead due to thread creation and deep copying of worksheet ranges.
-
-## DUCKDB.EXECX
-
-Executes initialization SQL followed by one or more SQL statements.
-
-Initialization SQL is executed before the main query and can be
+- Asynchronous formulas do not block Excel recalculation but they introduces overhead due to thread creation and deep copying of worksheet ranges.
+- Initialization SQL is executed before the main query and can be
 used to define reusable macros, views, or other helper objects.
+- Parameters are not bound in initialization SQL.
 
-### Syntax
-
-```excel
-=DUCKDB.EXECX(
-    [init_sql],
-    sql,
-    [range1],
-    [range2],
-    ...
-    [param1],
-    [param2]
-)
-```
-
-## DUCKDB.EXECX.ASYNC
-
-Asynchronous version of `DUCKDB.EXECX`.
-
-## DUCKDB.EXECA (from 1.1.0)
-
-Uses database file as default database then executes SQL statements.
-
-### Syntax
-
-```excel
-=DUCKDB.EXEC(
-	[db_file_path],
-    sql,
-    [range1],
-    [range2],
-    ...,
-    [param1],
-    [param2]
-)
-```
-
-### Advantages
-
-- Avoids `ATTACH` and `USE`.
-- Works with `INSERT`, `UPDATE`, `DELETE`, views.
-- Avoids multiple `read_duckdb()` for multiple tables in one database file.
-- Supports `xlrange` and parameter binding also.
-
-### Disadvantages
-
-Supports only one database file per formula.
-
-## DUCKDB.EXECA.ASYNC (from 1.1.0)
-
-Asynchronous version of `DUCKDB.EXECA`.
-
-## DUCKDB.EXECAX (from 1.1.0)
-
-DUCKDB.EXECA with initialization SQL.
-
-### Syntax
-
-```excel
-=DUCKDB.EXECX(
-    [db_file_path],
-    [init_sql],
-    sql,
-    [range1],
-    [range2],
-    ...
-    [param1],
-    [param2]
-)
-```
-
-## DUCKDB.EXECAX.ASYNC (from 1.1.0)
-
-Asynchronous version of `DUCKDB.EXECAX`.
-
-## DUCKDB.INFO
-
-Returns diagnostic information about the add-in and the currently loaded DuckDB runtime.
-
-This function is useful for:
-
-- Verifying the installed add-in version
-- Confirming which DuckDB version is loaded
-- Troubleshooting deployment and upgrade issues
-
-### Syntax
-
-```excel
-=DUCKDB.INFO()
-```
-
-### Example Result
-
-```text
-Add-in version: v1.1.0
-DuckDB version: v1.5.5
-```
-
-### Notes
-
-- The add-in version is supplied at build time through the `ADDIN_VERSION` build variable.
-- Development builds display `dev` when no version is specified.
-- The DuckDB version is obtained from the loaded `duckdb.dll`.
-- This function can be used to verify that a DuckDB DLL upgrade has been loaded successfully.
-
----
-
-# DuckDB Table Function References
-
-## xlrange
+## xlrange (DuckDB table function)
 
 Exposes Excel ranges as DuckDB tables.
 
@@ -651,37 +506,13 @@ xlrange(index, sample=n, all_varchar=true)
 
 3. If incompatible types are encountered, raise number error or fall back to VARCHAR.
 
-# DuckDB Scalar Function References
+## Date and time helpers (DuckDB scalar functions)
 
-## xldate
-
-Convert an Excel serial date value to a DuckDB DATE.
-
-### Syntax
-
-```sql
-xldate(value)
-```
-
-## xltime
-
-Convert the fractional portion of an Excel serial value to a DuckDB TIME.
-
-### Syntax
-
-```sql
-xltime(value)
-```
-
-## xldatetime
-
-Convert an Excel serial datetime value to a DuckDB TIMESTAMP.
-
-### Syntax
-
-```sql
-xldatetime(value)
-```
+| Function | Purpose | Syntax |
+|----------|---------|--------|
+| `xldate` | Convert an Excel serial date value to a DuckDB `DATE`. | `xldate(value)` |
+| `xltime` | Convert the fractional portion of an Excel serial value to a DuckDB `TIME`. | `xltime(value)` |
+| `xldatetime` | Convert an Excel serial datetime value to a DuckDB `TIMESTAMP`. | `xldatetime(value)` |
 
 ---
 
