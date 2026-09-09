@@ -456,11 +456,11 @@ examples\test_cases.xlsx
 |----------|-------|---------|---------|-----------------------------|
 | DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | Initial | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
 | DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | Initial | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | N/A |
-| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2])` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
-| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2])` | EXECA plus initialization SQL | N/A |
-| DUCKDB.INFO | 1.1.0 | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | N/A |
+| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
+| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL | N/A |
+| DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | N/A |
 
-### Usage Note
+### Usage Notes
 
 - Ranges must appear before scalar parameters.
 - When multiple SQL statements are supplied, all statements are
@@ -481,7 +481,7 @@ Exposes Excel ranges as DuckDB tables.
 xlrange(index, sample=n, all_varchar=true)
 ```
 
-### Note
+### Usage Notes
 
 - index (required) is the 1-based position of an Excel range passed to DUCKDB.EXEC or DUCKDB.EXEC.ASYNC
 - sample specifies the number of data rows used for type inference. A value of 0 samples all data rows. Defaults to 30 rows.
