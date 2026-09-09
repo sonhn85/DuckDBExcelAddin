@@ -448,6 +448,18 @@ examples\test_cases.xlsx
 | Positional `$1` | ✅ | Must reset parameter index for **each statement** |
 | Named `$param` | ❌ | Excel doesn't support named parameter |
 
+## Worksheet Formulas
+
+### All Formulas
+
+| Function | Since | Syntax | Purpose | Note | Equivalent xlDuckDB Formula |
+|----------|--------|--------|---------|---------|--------------|
+| DUCKDB.EXEC | Initial | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2])` | Execute SQL using in memory database | | |
+| DUCKDB.EXECX | Initial | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2])` | Execute initialization SQL, then main SQL using in memory database | Use initialization SQL for reusable macros, views, and helper objects | |
+| DUCKDB.EXECA | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2])` | Execute SQL using a DuckDB file as the default database | | `DuckDBQuery` |
+| DUCKDB.EXECAX | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2])` | EXECA plus initialization SQL | Persistent database plus setup SQL | |
+| DUCKDB.INFO | 1.1.0 | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | Version and diagnostic information | |
+
 ## DUCKDB.EXEC
 
 Executes one or more SQL statements.
