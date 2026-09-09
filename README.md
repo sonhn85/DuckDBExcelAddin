@@ -110,11 +110,8 @@ If you want to use database file as default database like xlDuckDB, DuckDBExcelA
 
 ```excel
 =DUCKDB.EXECA(
-"SELECT *
- FROM table_name
- WHERE cif = ?;",
 "Path\db.duckdb",
-1001
+"SELECT * FROM table_name;"
 )
 ```
 
