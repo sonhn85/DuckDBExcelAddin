@@ -117,7 +117,7 @@ If you want to use database file as default database like xlDuckDB, DuckDBExcelA
 
 ## Bind Excel values to SQL
 
-### Supports DuckDB Placeholders:
+### Supports DuckDB Placeholders
 
 * Auto-incremented:
 
