@@ -166,10 +166,12 @@ static void xlrange_bind(duckdb_bind_info info)
     duckdb_value            val_index = NULL;
     duckdb_value            val_sample = NULL;
     duckdb_value            val_all_varchar = NULL;
+    duckdb_value            val_header = NULL;
 
     duckdb_logical_type     lt_index = NULL;
     duckdb_logical_type     lt_sample = NULL;
     duckdb_logical_type     lt_all_varchar = NULL;
+    duckdb_logical_type     lt_header = NULL;
 
     duckdb_type             *types = NULL;
     char                    **colnames = NULL;
@@ -229,6 +231,35 @@ static void xlrange_bind(duckdb_bind_info info)
     {
         SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
         goto fail;
+    }
+
+    /* xlrange(..., header = true)
+     * val_header owns lt_header */
+    bool has_header = true; // Default
+
+    val_header = DUCKDB_BIND_GET_NAMED_PARAMETER(info, "header");
+
+    if (val_header)
+    {
+        if (DUCKDB_IS_NULL_VALUE(val_header))
+        {
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+            goto fail;
+        }
+
+        if (!(lt_header = DUCKDB_GET_VALUE_TYPE(val_header)))
+        {
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+            goto fail;
+        }
+
+        if (DUCKDB_GET_TYPE_ID(lt_header) != DUCKDB_TYPE_BOOLEAN)
+        {
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+            goto fail;
+        }
+
+        has_header = DUCKDB_GET_BOOL(val_header);
     }
 
     /* xlrange(..., all_varchar = true)
@@ -540,6 +571,9 @@ cleanup:
         DUCKDB_DESTROY_VALUE(&val_sample);
 
     if (val_all_varchar)
+        DUCKDB_DESTROY_VALUE(&val_all_varchar);
+
+    if (val_header)
         DUCKDB_DESTROY_VALUE(&val_all_varchar);
 
     return;
@@ -1046,7 +1080,8 @@ int register_xlrange_func
     duckdb_logical_type int_type = NULL;
     duckdb_logical_type bool_type = NULL;
 
-    if (!function || (!ranges && nrange > 0)) return 0;
+    if (!function || (!ranges && nrange > 0))
+		return 0;
 
     *function = NULL;
 
@@ -1077,6 +1112,7 @@ int register_xlrange_func
     DUCKDB_TABLE_FUNCTION_ADD_PARAMETER(table_func, int_type);
     DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "sample", int_type);
     DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "all_varchar", bool_type);
+	DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "header", bool_type);
     DUCKDB_TABLE_FUNCTION_SET_BIND(table_func, xlrange_bind);
     DUCKDB_TABLE_FUNCTION_SET_INIT(table_func, xlrange_init);
     DUCKDB_TABLE_FUNCTION_SET_FUNCTION(table_func, xlrange_scan);
