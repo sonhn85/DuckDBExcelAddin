@@ -454,8 +454,8 @@ examples\test_cases.xlsx
 
 | Function | Since | Syntax | Purpose | Equivalent xlDuckDB Formula |
 |----------|-------|---------|---------|-----------------------------|
-| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | Initial | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
-| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | Initial | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | N/A |
+| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
+| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | N/A |
 | DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
 | DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL | N/A |
 | DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | N/A |
@@ -478,7 +478,7 @@ Exposes Excel ranges as DuckDB tables.
 ### Syntax
 
 ```sql
-xlrange(index, sample=n, all_varchar=true)
+xlrange(index, sample=n, all_varchar=true, header=true)
 ```
 
 ### Usage Notes
@@ -488,6 +488,7 @@ xlrange(index, sample=n, all_varchar=true)
 - When all_varchar = true, all values are returned as VARCHAR and type inference is disabled.
 - The first row is always interpreted as column names and is not returned as data.
 - Column names must be non-empty and valid DuckDB identifiers.
+- When header = false, column names is generated as `column_0`, `column_1`, ...
 
 ### Type Mapping
 
