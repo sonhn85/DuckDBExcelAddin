@@ -478,7 +478,7 @@ Exposes Excel ranges as DuckDB tables.
 ### Syntax
 
 ```sql
-xlrange(index, sample=n, all_varchar=true, header=true)
+xlrange(index, sample=n, all_varchar=false, header=true)
 ```
 
 ### Usage Notes
