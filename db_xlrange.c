@@ -171,7 +171,7 @@ static bool is_int(double num)
  *        0: missing
  *        -1: error
  */
-static int get_int_param(duckdb_bind_info info, idx_t index, int *result, char **errmsg)
+static int get_int_param(duckdb_bind_info info, idx_t index, int *result, char **errmsg) \
 {
 	int ok = -1;
 	
@@ -215,96 +215,54 @@ cleanup:
 }
 
 /*
- * Helper to get boolean name parameter
+ * Helper to get name parameter
  * Return 1: success
  *        0: missing
  *        -1: error
  */
-static int get_bool_named_param(duckdb_bind_info info, const char *name, bool *result, char **errmsg)
-{
-	int ok = 0;
-	
-    duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);
-
-    if (val)
-    {
-		ok = -1;
-
-        if (DUCKDB_IS_NULL_VALUE(val))
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
-            goto cleanup;
-        }
-
-		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val); // owned by val
-
-        if (!lt)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-            goto cleanup;
-        }
-
-        if (DUCKDB_GET_TYPE_ID(lt) != DUCKDB_TYPE_BOOLEAN)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
-            goto cleanup;
-        }
-
-        *result = DUCKDB_GET_BOOL(val);
-		ok = 1;
-
-	cleanup:
-		DUCKDB_DESTROY_VALUE(&val);
-    }
-
-	return ok;
+#define DEF_FUNC(TYPE) 																					\
+static int get_##TYPE##_named_param(duckdb_bind_info info, const char *name, TYPE *result, char **errmsg) \
+{																										\
+	int ok = 0;																							\
+																										\
+    duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);										\
+																										\
+    if (val)																							\
+    {																									\
+		ok = -1;																						\
+																										\
+        if (DUCKDB_IS_NULL_VALUE(val))																	\
+        {																								\
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);										\
+            goto cleanup;																				\
+        }																								\
+																										\
+		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);											\
+																										\
+        if (!lt)																						\
+        {																								\
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);											\
+            goto cleanup;																				\
+        }																								\
+																										\
+        if (DUCKDB_GET_TYPE_ID(lt) != DUCKDB_TYPE_BOOLEAN)												\
+        {																								\
+            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);										\
+            goto cleanup;																				\
+        }																								\
+																										\
+        *result = DUCKDB_GET_BOOL(val);																	\
+		ok = 1;																							\
+																										\
+	cleanup:																							\
+																										\
+		DUCKDB_DESTROY_VALUE(&val);																		\
+    }																									\
+																										\
+	return ok;																							\
 }
-
-/*
- * Helper to get integer name parameter
- * Return 1: success
- *        0: missing
- *        -1: error
- */
-static int get_int_named_param(duckdb_bind_info info, const char *name, int *result, char **errmsg)
-{
-	int ok = 0;
-	
-    duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);
-
-    if (val)
-    {
-		ok = -1;
-		
-        if (DUCKDB_IS_NULL_VALUE(val))
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
-            goto cleanup;
-        }
-
-		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val); // owned by val
-
-        if (!lt)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-            goto cleanup;
-        }
-
-        if (DUCKDB_GET_TYPE_ID(lt) != DUCKDB_TYPE_INTEGER)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
-            goto cleanup;
-        }
-
-        *result = DUCKDB_GET_INT32(val);
-		ok = 1;
-		
-	cleanup:
-		DUCKDB_DESTROY_VALUE(&val);
-    }
-	
-	return ok;
-}
+DEF_FUNC(int)
+DEF_FUNC(bool)
 
 static void xlrange_bind(duckdb_bind_info info)
 {
