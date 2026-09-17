@@ -14,6 +14,8 @@
 #include "db_lib_loader.h"
 #include "config.h"
 
+#include "uthash.h"
+
 #define ERR_MSG_XLRANGE_INTERNAL            "An internal error occurred."
 #define ERR_MSG_XLRANGE_INVALID_PARAM       "Invalid parameter."
 #define ERR_MSG_XLRANGE_INVALID_COL_NAME    "Invalid column name. Column names must be non-empty and valid DuckDB identifiers."
@@ -22,6 +24,13 @@
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
 
 #define GENERATED_COLNAME_SIZE 100
+
+typedef struct colname_hash_t
+{
+    char *name;             /* key */
+    size_t count;           /* occurrences seen */
+    UT_hash_handle hh;
+} colname_hash_t;
 
 typedef struct xlrange_context_t
 {
@@ -50,6 +59,64 @@ typedef struct xlrange_scan_state_t
     idx_t           vec_size;   /* Duckdb vector size */
     bool            has_header;
 } xlrange_scan_state_t;
+
+static char *make_unique_name(
+    colname_hash_t **hash,
+    const char *name
+)
+{
+    colname_hash_t *entry = NULL;
+
+    HASH_FIND_STR(*hash, name, entry);
+
+    if (!entry)
+    {
+        entry = malloc(sizeof(*entry));
+        if (!entry)
+            return NULL;
+
+        entry->name = _strdup(name);
+        if (!entry->name)
+        {
+            free(entry);
+            return NULL;
+        }
+
+        entry->count = 1;
+
+        HASH_ADD_KEYPTR(
+            hh,
+            *hash,
+            entry->name,
+            strlen(entry->name),
+            entry
+        );
+
+        return _strdup(name);
+    }
+
+    entry->count++;
+
+    size_t len =
+        strlen(name)
+        + 1                  /* '_' */
+        + 20                 /* suffix */
+        + 1;                 /* '\0' */
+
+    char *new_name = malloc(len);
+    if (!new_name)
+        return NULL;
+
+    snprintf(
+        new_name,
+        len,
+        "%s_%zu",
+        name,
+        entry->count - 1
+    );
+
+    return new_name;
+}
 
 static void format_error_message
 (
@@ -264,6 +331,7 @@ static int get_##TYPE##_named_param(duckdb_bind_info info, const char *name, TYP
 																										\
 	return ok;																							\
 }
+
 DEF_FUNC(int, DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
 DEF_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
 
@@ -485,6 +553,10 @@ static void xlrange_bind(duckdb_bind_info info)
                         has_header
                     );
                     goto free_str_xloper12;
+                }
+                else /* Fix duplicated column names */
+                {
+                    
                 }
 
             free_str_xloper12:
