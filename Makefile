@@ -6,6 +6,7 @@ EXCEL_SDK_INC_PATH = $(EXCEL_SDK_PATH)/INCLUDE
 FRAMEWRK_PATH = $(EXCEL_SDK_PATH)/SAMPLES/FRAMEWRK
 FRAMEWRK_SRC_PATH = $(FRAMEWRK_PATH)
 FRAMEWRK_INC_PATH = $(FRAMEWRK_PATH)
+UTHASH_INC_PATH = lib/uthash
 
 ADDIN_VERSION := dev
 
@@ -32,7 +33,7 @@ db_lib_loader.o: db_lib_loader.c db_lib_loader.h helper.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
 
 db_xlrange.o: db_xlrange.c db_xlrange.h helper.h db_lib_loader.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) -I$(FRAMEWRK_INC_PATH) $<
+	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) -I$(FRAMEWRK_INC_PATH) -I$(UTHASH_INC_PATH) $<
 
 db_scalar_funcs.o: db_scalar_funcs.c db_scalar_funcs.h db_lib_loader.h helper.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
