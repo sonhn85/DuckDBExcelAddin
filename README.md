@@ -484,8 +484,6 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 
 ### Usage Notes
 
-### Usage Notes
-
 | Parameter | Status | Default | Description |
 |-----------|---------|---------|-------------|
 | `index` | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
