@@ -328,6 +328,7 @@ Older Excel versions without Dynamic Arrays are not supported.
 - DuckDB C API
   - `duckdb.h`
   - `duckdb.dll`
+- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
 
 ---
 
@@ -691,7 +692,7 @@ This project would not exist without the work of the DuckDB community.
 Special thanks to xlDuckDB, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
 
 Additional thanks to:
-
+- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
 - Microsoft Excel XLL SDK
 
 Parts of this documentation were drafted with AI assistance and reviewed manually.
