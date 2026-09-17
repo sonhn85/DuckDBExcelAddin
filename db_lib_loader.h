@@ -355,6 +355,20 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_scalar_function_set_error))(
     duckdb_function_info info,
     const char *error
 );
+typedef duckdb_scalar_function_set (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_scalar_function_set))(
+    const char *name
+);
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_register_scalar_function_set))(
+    duckdb_connection con,
+    duckdb_scalar_function_set set
+);
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_destroy_scalar_function_set))(
+    duckdb_scalar_function_set *scalar_function_set
+);
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_add_scalar_function_to_set))(
+    duckdb_scalar_function_set set,
+    duckdb_scalar_function function
+);
 
 /* Other */
 typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_free))(void *ptr);
@@ -490,7 +504,11 @@ X(duckdb_scalar_function_add_parameter, DUCKDB_SCALAR_FUNCTION_ADD_PARAMETER) \
 X(duckdb_scalar_function_set_return_type, DUCKDB_SCALAR_FUNCTION_SET_RETURN_TYPE) \
 X(duckdb_destroy_scalar_function, DUCKDB_DESTROY_SCALAR_FUNCTION) \
 X(duckdb_scalar_function_set_function, DUCKDB_SCALAR_FUNCTION_SET_FUNCTION) \
-X(duckdb_scalar_function_set_error, DUCKDB_SCALAR_FUNCTION_SET_ERROR)
+X(duckdb_scalar_function_set_error, DUCKDB_SCALAR_FUNCTION_SET_ERROR) \
+X(duckdb_create_scalar_function_set, DUCKDB_CREATE_SCALAR_FUNCTION_SET) \
+X(duckdb_register_scalar_function_set, DUCKDB_REGISTER_SCALAR_FUNCTION_SET) \
+X(duckdb_destroy_scalar_function_set, DUCKDB_DESTROY_SCALAR_FUNCTION_SET) \
+X(duckdb_add_scalar_function_to_set, DUCKDB_ADD_SCALAR_FUNCTION_TO_SET)
 
 /* Other */
 #define DUCKDB_OTHER_FUNCTIONS(X) \

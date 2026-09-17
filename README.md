@@ -478,7 +478,7 @@ Exposes Excel ranges as DuckDB tables.
 ### Syntax
 
 ```sql
-xlrange(index, sample=n, all_varchar=false, header=true)
+xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 ```
 
 ### Usage Notes
@@ -489,6 +489,7 @@ xlrange(index, sample=n, all_varchar=false, header=true)
 - The first row is always interpreted as column names and is not returned as data.
 - Column names must be non-empty and valid DuckDB identifiers.
 - When header = false, column names is generated as `column_0`, `column_1`, ...
+- When strict = true (default), a error is raised if empty column name is encountered. When strict = false, unnamed_0, unnamed_1... are generated.
 
 ### Type Mapping
 
