@@ -32,7 +32,7 @@ db_lib_loader.o: db_lib_loader.c db_lib_loader.h helper.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
 
 db_xlrange.o: db_xlrange.c db_xlrange.h helper.h db_lib_loader.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) -I$(FRAMEWRK_INC_PATH) $<
 
 db_scalar_funcs.o: db_scalar_funcs.c db_scalar_funcs.h db_lib_loader.h helper.h config.h
 	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
