@@ -328,6 +328,7 @@ Older Excel versions without Dynamic Arrays are not supported.
 - DuckDB C API
   - `duckdb.h`
   - `duckdb.dll`
+- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
 
 ---
 
@@ -483,13 +484,13 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 
 ### Usage Notes
 
-- index (required) is the 1-based position of an Excel range passed to DUCKDB.EXEC or DUCKDB.EXEC.ASYNC
-- sample specifies the number of data rows used for type inference. A value of 0 samples all data rows. Defaults to 30 rows.
-- When all_varchar = true, all values are returned as VARCHAR and type inference is disabled.
-- The first row is always interpreted as column names and is not returned as data.
-- Column names must be non-empty and valid DuckDB identifiers.
-- When header = false, column names is generated as `column_0`, `column_1`, ...
-- When strict = true (default), a error is raised if empty column name is encountered. When strict = false, unnamed_0, unnamed_1... are generated.
+| Parameter | Status | Default | Description |
+|-----------|---------|---------|-------------|
+| `index` | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
+| `sample` | 🟢 Optional | `30` | Number of data rows used for type inference. A value of `0` samples all data rows. |
+| `all_varchar` | 🟢 Optional | `false` | When `true`, all values are returned as `VARCHAR` and type inference is disabled. |
+| `header` | 🟢 Optional | `true` | When `true`, the first row is interpreted as column names. Column names must be valid, unique DuckDB identifiers. When `false`, column names are generated as `column_0`, `column_1`, ... |
+| `strict` | 🟢 Optional | `true` | When `true`, an error is raised if an empty column name is encountered. When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated columns name is change to `name`, `name_1`, `name_2`, ... This option is ignored when `header=false`. |
 
 ### Type Mapping
 
@@ -691,7 +692,7 @@ This project would not exist without the work of the DuckDB community.
 Special thanks to xlDuckDB, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
 
 Additional thanks to:
-
+- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
 - Microsoft Excel XLL SDK
 
 Parts of this documentation were drafted with AI assistance and reviewed manually.

@@ -14,6 +14,8 @@
 #include "db_lib_loader.h"
 #include "config.h"
 
+#include "uthash.h"
+
 #define ERR_MSG_XLRANGE_INTERNAL            "An internal error occurred."
 #define ERR_MSG_XLRANGE_INVALID_PARAM       "Invalid parameter."
 #define ERR_MSG_XLRANGE_INVALID_COL_NAME    "Invalid column name. Column names must be non-empty and valid DuckDB identifiers."
@@ -22,6 +24,13 @@
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
 
 #define GENERATED_COLNAME_SIZE 100
+
+typedef struct colname_hash_t
+{
+    char *name;             /* key */
+    size_t count;           /* occurrences seen */
+    UT_hash_handle hh;
+} colname_hash_t;
 
 typedef struct xlrange_context_t
 {
@@ -50,6 +59,64 @@ typedef struct xlrange_scan_state_t
     idx_t           vec_size;   /* Duckdb vector size */
     bool            has_header;
 } xlrange_scan_state_t;
+
+static char *make_unique_name(
+    colname_hash_t **hash,
+    const char *name
+)
+{
+    colname_hash_t *entry = NULL;
+
+    HASH_FIND_STR(*hash, name, entry);
+
+    if (!entry)
+    {
+        entry = malloc(sizeof(*entry));
+        if (!entry)
+            return NULL;
+
+        entry->name = _strdup(name);
+        if (!entry->name)
+        {
+            free(entry);
+            return NULL;
+        }
+
+        entry->count = 1;
+
+        HASH_ADD_KEYPTR(
+            hh,
+            *hash,
+            entry->name,
+            strlen(entry->name),
+            entry
+        );
+
+        return _strdup(name);
+    }
+
+    entry->count++;
+
+    size_t len =
+        strlen(name)
+        + 1                  /* '_' */
+        + 20                 /* suffix */
+        + 1;                 /* '\0' */
+
+    char *new_name = malloc(len);
+    if (!new_name)
+        return NULL;
+
+    snprintf(
+        new_name,
+        len,
+        "%s_%zu",
+        name,
+        entry->count - 1
+    );
+
+    return new_name;
+}
 
 static void format_error_message
 (
@@ -264,6 +331,7 @@ static int get_##TYPE##_named_param(duckdb_bind_info info, const char *name, TYP
 																										\
 	return ok;																							\
 }
+
 DEF_FUNC(int, DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
 DEF_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
 
@@ -388,6 +456,7 @@ static void xlrange_bind(duckdb_bind_info info)
 
     /* Infer DuckDB types and bind result columns */
     size_t unnamed_idx = 0;
+	colname_hash_t *hash = NULL;
     for (size_t i=0; i < ncols; i++, p++)
     {
         char *colname = NULL;
@@ -410,127 +479,110 @@ static void xlrange_bind(duckdb_bind_info info)
                 i
             );
         }
-        else if (is_strict)
-        {
-            if (LPXLOPER12_TYPE(p) != xltypeStr
-                || is_null_or_whitespace_xlstr(p->val.str)
-                || (xlstr_to_utf8(&colname, p->val.str, NULL) == 0)
-                || !colname)
-            {
-                format_error_message(
-                    errmsg,
-                    sizeof(errmsg),
-                    "binding xlrange",
-                    NULL,
-                    (long long)i,
-                    -1,
-                    ERR_MSG_XLRANGE_INVALID_COL_NAME,
-                    has_header
-                );
-                goto bind_column_failure;
-            }
-        }
-        else /* not strict */
-        {
-            if (LPXLOPER12_TYPE(p) != xltypeStr)
-            {
-                XLOPER12 str_xloper12;
-                str_xloper12.xltype = xltypeNil;
-                if (Excel12f(xlCoerce, &str_xloper12, 2, p, TempInt12(xltypeStr)) != xlretSuccess
-                    || XLOPER12_TYPE(str_xloper12) != xltypeStr)
-                {
-                    format_error_message(
-                        errmsg,
-                        sizeof(errmsg),
-                        "binding xlrange",
-                        NULL,
-                        (long long)i,
-                        -1,
-                        ERR_MSG_XLRANGE_INVALID_COL_NAME,
-                        has_header
-                    );
-                    goto free_str_xloper12;
-                }
+		else
+		{
+			XLOPER12 str_xloper12;
+			str_xloper12.xltype = xltypeNil;
+			wchar_t *xlstr = NULL;
+			if (LPXLOPER12_TYPE(p) == xltypeStr)
+			{
+				xlstr = p->val.str;
+			}
+			else
+			{
+				if (Excel12f(xlCoerce, &str_xloper12, 2, p, TempInt12(xltypeStr)) != xlretSuccess
+					|| XLOPER12_TYPE(str_xloper12) != xltypeStr)
+				{
+					format_error_message(
+						errmsg,
+						sizeof(errmsg),
+						"binding xlrange",
+						NULL,
+						(long long)i,
+						-1,
+						ERR_MSG_XLRANGE_INVALID_COL_NAME,
+						has_header
+					);
+					goto free_str_xloper12;
+				}
+				xlstr = str_xloper12.val.str;
+			}
+			
+			if (is_strict)
+			{
+				if (is_null_or_whitespace_xlstr(xlstr)
+					|| (xlstr_to_utf8(&colname, xlstr, NULL) == 0)
+					|| !colname)
+				{
+					format_error_message(
+						errmsg,
+						sizeof(errmsg),
+						"binding xlrange",
+						NULL,
+						(long long)i,
+						-1,
+						ERR_MSG_XLRANGE_INVALID_COL_NAME,
+						has_header
+					);
+					goto free_str_xloper12;
+				}
+			}
+			else /* not strict */
+			{
+				if (is_null_or_whitespace_xlstr(xlstr))
+				{
+					colname = malloc(GENERATED_COLNAME_SIZE);
 
-                if (is_null_or_whitespace_xlstr(str_xloper12.val.str))
-                {
-                    colname = malloc(GENERATED_COLNAME_SIZE);
+					if (!colname)
+					{
+						SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+						goto free_str_xloper12;
+					}
 
-                    if (!colname)
-                    {
-                        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-                        goto free_str_xloper12;
-                    }
+					snprintf(
+						colname,
+						GENERATED_COLNAME_SIZE,
+						"unnamed_%zu",
+						unnamed_idx
+					);
 
-                    snprintf(
-                        colname,
-                        GENERATED_COLNAME_SIZE,
-                        "unnamed_%zu",
-                        unnamed_idx
-                    );
+					unnamed_idx++;
+				}
+				else if (xlstr_to_utf8(&colname, xlstr, NULL) == 0
+						 || !colname)
+				{
+					format_error_message(
+						errmsg,
+						sizeof(errmsg),
+						"binding xlrange",
+						NULL,
+						(long long)i,
+						-1,
+						ERR_MSG_XLRANGE_INVALID_COL_NAME,
+						has_header
+					);
+					goto free_str_xloper12;
+				}
 
-                    unnamed_idx++;
-                }
-                else if (xlstr_to_utf8(&colname, str_xloper12.val.str, NULL) == 0
-                         || !colname)
-                {
-                    format_error_message(
-                        errmsg,
-                        sizeof(errmsg),
-                        "binding xlrange",
-                        NULL,
-                        (long long)i,
-                        -1,
-                        ERR_MSG_XLRANGE_INVALID_COL_NAME,
-                        has_header
-                    );
-                    goto free_str_xloper12;
-                }
+				/* Fix duplicates */
+				char *name = colname;
+				colname = make_unique_name(&hash, name);
+				free(name);
+				if (!colname)
+				{
+					SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+					goto free_str_xloper12;
+				}
+			}
 
-            free_str_xloper12:
+		free_str_xloper12:
 
-                if (XLOPER12_TYPE(str_xloper12) != xltypeNil)
-                    Excel12f(xlFree, NULL, 1, &str_xloper12);
+			if (XLOPER12_TYPE(str_xloper12) != xltypeNil)
+				Excel12f(xlFree, NULL, 1, &str_xloper12);
 
-                if(!colname)
-                    goto bind_column_failure;
-
-            }
-            else if (is_null_or_whitespace_xlstr(p->val.str))
-            {
-                colname = malloc(GENERATED_COLNAME_SIZE);
-
-                if (!colname)
-                {
-                    SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-                    goto bind_column_failure;
-                }
-
-                snprintf(
-                    colname,
-                    GENERATED_COLNAME_SIZE,
-                    "unnamed_%zu",
-                    unnamed_idx
-                );
-
-                unnamed_idx++;
-            }
-            else if (xlstr_to_utf8(&colname, p->val.str, NULL) == 0
-                     || !colname)
-            {
-                format_error_message(
-                    errmsg,
-                    sizeof(errmsg),
-                    "binding xlrange",
-                    NULL,
-                    (long long)i,
-                    -1,
-                    ERR_MSG_XLRANGE_INVALID_COL_NAME,
-                    has_header
-                );
-                goto bind_column_failure;
-            }
-        }
+			if(!colname)
+				goto bind_column_failure;
+		}
 
         /*
         * Type inference strategy:
@@ -692,6 +744,8 @@ static void xlrange_bind(duckdb_bind_info info)
         continue;
 
     bind_column_failure:
+
+		HASH_CLEAR(hh, hash);
 
         free(colname);
     
