@@ -673,13 +673,13 @@ cleanup:
         DUCKDB_DESTROY_TABLE_FUNCTION(&xlrange_func);
 
     if (xldate_func)
-        DUCKDB_DESTROY_SCALAR_FUNCTION(&xldate_func);
+        DUCKDB_DESTROY_SCALAR_FUNCTION_SET(&xldate_func);
 
     if (xltime_func)
-        DUCKDB_DESTROY_SCALAR_FUNCTION(&xltime_func);
+        DUCKDB_DESTROY_SCALAR_FUNCTION_SET(&xltime_func);
 
     if (xldatetime_func)
-        DUCKDB_DESTROY_SCALAR_FUNCTION(&xldatetime_func);
+        DUCKDB_DESTROY_SCALAR_FUNCTION_SET(&xldatetime_func);
 
 	free(db_path_utf8);
 
