@@ -3,3 +3,6 @@
 
 # Ignore Excel add-in binaries
 *.xll
+
+# Ignore dll
+*.dll
