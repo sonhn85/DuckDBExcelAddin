@@ -1374,6 +1374,7 @@ int register_xlrange_func
     DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "all_varchar", bool_type);
 	DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "header", bool_type);
 	DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "strict", bool_type);
+	DUCKDB_TABLE_FUNCTION_ADD_NAMED_PARAMETER(table_func, "ignore_errors", bool_type);
     DUCKDB_TABLE_FUNCTION_SET_BIND(table_func, xlrange_bind);
     DUCKDB_TABLE_FUNCTION_SET_INIT(table_func, xlrange_init);
     DUCKDB_TABLE_FUNCTION_SET_FUNCTION(table_func, xlrange_scan);
