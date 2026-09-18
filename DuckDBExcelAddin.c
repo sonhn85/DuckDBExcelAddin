@@ -486,9 +486,9 @@ static LPXLOPER12 run_sql_create_range(
     duckdb_database db = NULL;
     duckdb_connection con = NULL;
     duckdb_table_function xlrange_func = NULL;
-    duckdb_scalar_function xldate_func = NULL;
-    duckdb_scalar_function xltime_func = NULL;
-    duckdb_scalar_function xldatetime_func = NULL;
+    duckdb_scalar_function_set xldate_func = NULL;
+    duckdb_scalar_function_set xltime_func = NULL;
+    duckdb_scalar_function_set xldatetime_func = NULL;
     duckdb_extracted_statements extracted_stmts = NULL;
     idx_t stmt_count = 0;
     LPXLOPER12 result = NULL;
