@@ -42,7 +42,36 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 
 *Comparison based on publicly documented features available at the time of writing.*
 
----
+# Installation
+
+## Requirement
+
+- Microsoft Excel 64-bit with Dynamic Array (Spill Range) support
+  - Microsoft 365 Excel
+  - Excel 2024
+- DuckDB 1.5.0 or later (`duckdb.dll`)
+
+## Enable add-in
+
+Copy these files to the same folder:
+
+```text
+DuckDBExcelAddIn.xll
+duckdb.dll
+```
+Open the XLL directly, or add it through the Excel Add-ins dialog.
+
+## DuckDB upgrade
+
+DuckDB is loaded dynamically at runtime.
+
+Upgrading DuckDB generally requires only replacing:
+
+```text
+duckdb.dll
+```
+
+with a newer compatible version.
 
 # Tutorial
 
@@ -207,98 +236,25 @@ A1:D100
 )
 ```
 
-## Lightweight Native Deployment
-
-The add-in is implemented entirely in C.
-
-Benefits:
-
-- No .NET runtime dependency
-- Fast startup
-- Small deployment footprint
-
-Deployment consists of:
-
-```text
-DuckDBExcelAddIn.xll
-duckdb.dll
-```
-
-## Drop-In DuckDB Upgrades
-
-DuckDB is loaded dynamically at runtime.
-
-Upgrading DuckDB generally requires only replacing:
-
-```text
-duckdb.dll
-```
-
-with a newer compatible version.
-
-No recompilation of the XLL is required.
-
----
-
 # Architecture
 
-DuckDBExcelAddin executes SQL inside the Excel process using the
-embedded DuckDB engine.
+DuckDBExcelAddin executes SQL inside the Excel process using the embedded DuckDB engine.
 
-Excel ranges are exposed to DuckDB through the xlrange() table
-function, allowing worksheet data to participate in SQL queries.
+Excel ranges are exposed to DuckDB through the `xlrange()` table function, allowing worksheet data to participate in SQL queries.
 
-SQL statements are extracted, then each statement is prepared,
-bound with parameters, and executed.
+SQL statements are extracted, then each statement is prepared, bound with parameters, and executed.
 
-The result of the final statement is materialized and returned
-to Excel as a dynamic array (spill range).
+The result of the final statement is materialized and returned to Excel as a dynamic array (spill range).
 
----
-
-# Requirements
-
-## Microsoft Excel
-
-The add-in requires:
-
-- Microsoft Excel 64-bit
-- Dynamic Array (Spill Range) support
-
-Supported versions include:
-
-- Microsoft 365 Excel (64-bit)
-- Excel 2024 (64-bit)
-
-Older Excel versions without Dynamic Arrays are not supported.
-
-## Platform
-
-- Windows x64
-- Excel x64
-- DuckDB x64
-
----
-
-# Dependencies
-
-## Runtime
-
-- DuckDB 1.5.0 or later (`duckdb.dll`)
+# Building
 
 ## Build Requirements
 
 - Excel XLL SDK
-  - `XLCALL`
-  - `FRAMEWRK`
-- DuckDB C API
-  - `duckdb.h`
-  - `duckdb.dll`
-- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
+- DuckDB C API (`duckdb.h`)
+- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and _Arthur O'Dwyer_
 
----
-
-# Compiler Support
+## Compiler Support
 
 Development and testing are performed primarily using:
 
@@ -308,25 +264,7 @@ Other toolchains such as Visual Studio (MSVC) may work but are currently unverif
 
 Contributions and testing reports are welcome.
 
----
-
-# Build Notes
-
-## Build
-
-### Development
-
-```bash
-make EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
-```
-
-### Release
-
-```bash
-make ADDIN_VERSION=vx.x.x EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
-```
-
-## XLCALL.H, FRAMEWRK.C Compatibility
+## Build Notes
 
 Some versions of `XLCALL.H` contain a struct member named:
 
@@ -354,56 +292,27 @@ and update the corresponding references in `FRAMEWRK.C`.
 
 This modification only affects local compilation and does not affect runtime behavior.
 
-## FRAMEWRK Linker Requirement
+## Build instruction
 
-`FRAMEWRK` depends on legacy Excel4-family APIs.
+- Development
 
-When building with MinGW-w64 or w64devkit, unresolved external references may occur even though those functions are never used by the add-in.
-
-`excel4workaround.c` provides stub implementations:
-
-```c
-#include <windows.h>
-#include "XLCALL.H"
-
-int _cdecl Excel4(int xlfn, LPXLOPER operRes, int count,... )
-{
-   return xlretFailed;
-}
-
-int pascal Excel4v(int xlfn, LPXLOPER operRes, int count, LPXLOPER opers[])
-{
-   return xlretFailed;
-}
+```bash
+make EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
 ```
 
-These functions exist only to satisfy linker requirements introduced by `FRAMEWRK`.
+- Release
 
----
-
-# Installation
-
-Copy these files to the same folder:
-
-```text
-DuckDBExcelAddIn.xll
-duckdb.dll
+```bash
+make ADDIN_VERSION=vx.x.x EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-include> xll
 ```
 
-Open the XLL directly, or add it through the Excel Add-ins dialog.
+## Tests
 
----
-
-# Examples and Tests
-
-The release package includes a workbook containing examples and
-regression tests for the major features of DuckDBExcelAddin.
+The release package includes a workbook containing examples and regression tests for the major features of DuckDBExcelAddin.
 
 ```text
 examples\test_cases.xlsx
 ```
-
----
 
 # References
 
