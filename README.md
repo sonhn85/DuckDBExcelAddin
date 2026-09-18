@@ -414,24 +414,13 @@ Big DuckDB numeric types (BIGINT, HUGEINT, DECIMAL) may lose precision when conv
 
 ## Excel Range-Based Data Exchange
 
-Input data is supplied through Excel ranges and output data is returned through Excel ranges.
-
-Consequently:
+Data is exchanged through Excel ranges.
 
 - Excel worksheet limits apply.
 - Large datasets may consume significant memory.
-- Both source and result data must fit within Excel's worksheet model.
+- Input and output data must fit within Excel worksheets.
 
-For large-scale analytics, it is generally more efficient to query:
-
-- DuckDB databases
-- Parquet files
-- CSV files
-- Other external DuckDB-supported data sources
-
-directly through DuckDB rather than loading all data into Excel worksheets.
-
-Example:
+For large datasets, query DuckDB-supported sources directly (Parquet, CSV, DuckDB databases, etc.) and return only the required results to Excel.
 
 ```sql
 SELECT *
@@ -439,13 +428,9 @@ FROM read_parquet('large_dataset.parquet')
 LIMIT 1000
 ```
 
-Or only fetch aggregate data to the worksheet for the next step in your workflow.
-
 ## DuckDB Composite Types
 
-Excel cells can only represent a limited set of scalar values.
-
-DuckDB composite types such as:
+The following DuckDB types cannot be returned directly to Excel:
 
 - LIST
 - STRUCT
@@ -453,17 +438,13 @@ DuckDB composite types such as:
 - UNION
 - VARIANT
 
-are currently **not returned directly to Excel**.
-
-Attempting to return these types will return an error.
+Attempting to return these types results in an error.
 
 Workaround:
 
 ```sql
 SELECT CAST(my_struct AS VARCHAR)
 ```
-
-or:
 
 ```sql
 SELECT to_json(my_struct)
@@ -476,15 +457,15 @@ SELECT to_json(my_struct)
 Verify:
 
 - Excel is 64-bit
-- duckdb.dll is 64-bit
 - duckdb.dll is located next to DuckDBExcelAddIn.xll
+- duckdb.dll minimum version is 1.5.0
 - The add-in is not blocked
 
 ## #VALUE! returned
 
 Verify:
 
-- SQL syntax is valid
+- Add-in is loaded
 - Dynamic Arrays are supported
 - Result size does not exceed Excel limits
 
