@@ -27,8 +27,8 @@
 
 typedef struct colname_hash_t
 {
-    char *name;             /* key */
-    size_t count;           /* occurrences seen */
+    char *name;             	/* key */
+    size_t count;           	/* occurrences seen */
     UT_hash_handle hh;
 } colname_hash_t;
 
@@ -46,6 +46,7 @@ typedef struct xlrange_bind_data_t
     duckdb_type     *types;     /* Inferred DuckDB types */
     char            **colnames; /* UTF-8 column names (owned) */
     bool            has_header;
+	bool			ignore_errors;
 } xlrange_bind_data_t;
 
 typedef struct xlrange_scan_state_t
@@ -58,6 +59,7 @@ typedef struct xlrange_scan_state_t
     char            **colnames; /* UTF-8 column names (owned) */
     idx_t           vec_size;   /* Duckdb vector size */
     bool            has_header;
+	bool			ignore_errors;
 } xlrange_scan_state_t;
 
 static char *make_unique_name(
@@ -367,9 +369,7 @@ static void xlrange_bind(duckdb_bind_info info)
     }
 
 	if (get_int_param(info, 0, &range_idx, errmsg) != 1)
-	{
 		goto fail;
-	}
 
     if (range_idx <= 0 || (size_t)range_idx > ctx->nrange)
     {
@@ -381,25 +381,25 @@ static void xlrange_bind(duckdb_bind_info info)
     bool has_header = true; // Default
 	
 	if (get_bool_named_param(info, "header", &has_header, errmsg) == -1)
-	{
 		goto fail;
-	}
 
     /* xlrange(..., strict = true) */
     bool is_strict = true; // Default
 	
 	if (get_bool_named_param(info, "strict", &is_strict, errmsg) == -1)
-	{
 		goto fail;
-	}
 
     /* xlrange(..., all_varchar = true) */
     bool all_varchar = false; // Default
 	
 	if (get_bool_named_param(info, "all_varchar", &all_varchar, errmsg) == -1)
-	{
 		goto fail;
-	}
+
+    /* xlrange(..., ignore_errors = false) */
+    bool ignore_errors = false; // Default
+	
+	if (get_bool_named_param(info, "ignore_errors", &ignore_errors, errmsg) == -1)
+		goto fail;
 
     /* xlrange(..., sample = n) */
     int32_t sample_count = XLRANGE_DEFAULT_SAMPLE_COUNT; // Default
@@ -407,9 +407,7 @@ static void xlrange_bind(duckdb_bind_info info)
     if (!all_varchar)
     {
 		if (get_int_named_param(info, "sample", &sample_count, errmsg) == -1)
-		{
 			goto fail;
-		}
 
         if (sample_count < 0)
         {
@@ -745,7 +743,15 @@ static void xlrange_bind(duckdb_bind_info info)
 
     bind_column_failure:
 
-		HASH_CLEAR(hh, hash);
+		colname_hash_t *hash_entry, *hash_tmp;
+		
+		HASH_ITER(hh, hash, hash_entry, hash_tmp)
+		{
+			HASH_DEL(hash, hash_entry);
+			free(hash_entry->name);
+			free(hash_entry);
+		}
+		hash = NULL;
 
         free(colname);
     
@@ -773,6 +779,7 @@ static void xlrange_bind(duckdb_bind_info info)
     types = NULL;
     bind_data->colnames = colnames;
     colnames = NULL;
+	bind_data->ignore_errors = ignore_errors;
 
     DUCKDB_BIND_SET_BIND_DATA(info, bind_data, free_bind_data);
     bind_data = NULL;
@@ -906,6 +913,7 @@ static void xlrange_init(duckdb_init_info info)
     state->colnames = colnames;
     colnames = NULL;
     state->vec_size = DUCKDB_VECTOR_SIZE();
+	state->ignore_errors = bind_data->ignore_errors;
 
     DUCKDB_INIT_SET_INIT_DATA(info, state, free_scan_state);
     state = NULL;
@@ -980,6 +988,8 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
             LPXLOPER12 cell = &state->lparray[idx];
 
+			bool ignore_errors = state->ignore_errors;
+
             switch (state->types[c])
             {
                 case DUCKDB_TYPE_INTEGER:
@@ -1001,6 +1011,9 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
                         case xltypeNum:
                             if (!is_int(cell->val.num))
                             {
+								if (ignore_errors)
+									goto sqlnull;
+								
                                 format_error_message(
                                     errmsg,
                                     sizeof(errmsg),
@@ -1058,6 +1071,9 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
                             if (!ok) 
                             {
+								if (ignore_errors)
+									goto sqlnull;
+
                                 format_error_message(
                                     errmsg,
                                     sizeof(errmsg),
@@ -1140,6 +1156,9 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
                             if (!ok) 
                             {
+								if (ignore_errors)
+									goto sqlnull;
+								
                                 format_error_message(
                                     errmsg,
                                     sizeof(errmsg),
@@ -1221,6 +1240,9 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
                             if (!ok)
                             {
+								if (ignore_errors)
+									goto sqlnull;
+								
                                 format_error_message(
                                     errmsg,
                                     sizeof(errmsg),
