@@ -22,7 +22,7 @@ A native Microsoft Excel XLL add-in for querying Excel ranges with DuckDB SQL an
 
 ![Screenshot](docs/screenshot.jpg "Screenshot")
 
-## Feature comparison with xlDuckDB
+## Comparison with xlDuckDB
 
 This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb), an XLL add-in that integrates DuckDB with Microsoft Excel.
 
@@ -33,7 +33,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 | Query external files | ✅ | ✅ |
 | Query Excel ranges | ✅ | ✅ |
 | Parameter binding from Excel values | ✅ | ❌ |
-| `xlrange` options | ✅ | ❌ |
+| `xlrange` type inference options | ✅ | ❌ |
 | Helpers for Excel date and time values | ✅ | ❌ |
 | Async execution | ✅ | ❓ |
 | XLL implementation | ✅ | ✅ |
@@ -81,7 +81,7 @@ A1:D100
 
 ## Query external files
 
-### Use database file as default database
+- Use database file as default database
 
 ```excel
 =DUCKDB.EXECA(
@@ -90,7 +90,7 @@ A1:D100
 )
 ```
 
-### Use DuckDB `read_xxx()` function
+- Use DuckDB `read_xxx()` function
 
 ```excel
 =DUCKDB.EXEC(
@@ -100,7 +100,7 @@ A1:D100
 )
 ```
 
-## Parameter binding from Excel values
+## Parameter binding
 
 - Auto-incremented parameters:
 
@@ -179,15 +179,7 @@ F1:I200,
 )
 ```
 
-## Asynchronous Execution
-
-Supports asynchronous worksheet functions. Long-running queries do not block Excel recalculation.
-
-```excel
-=DUCKDB.EXEC.ASYNC(...)
-```
-
-## Excel Date and Time Values
+## Excel date and time helpers
 
 Adds scalar functions to convert Excel date and time values stored as DOUBLE to DuckDB DATE, TIME and TIMESTAMP.
 
