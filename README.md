@@ -51,7 +51,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
   - Excel 2024
 - DuckDB 1.5.0 or later (`duckdb.dll`)
 
-## Enable add-in
+## Enable the Add-in
 
 Copy these files to the same folder:
 
@@ -61,7 +61,7 @@ duckdb.dll
 ```
 Open the XLL directly, or add it through the Excel Add-ins dialog.
 
-## DuckDB upgrade
+## DuckDB Upgrade
 
 DuckDB is loaded dynamically at runtime.
 
@@ -75,7 +75,7 @@ with a newer compatible version.
 
 # Tutorial
 
-## Query Excel ranges
+## Query Excel Ranges
 
 - Excel ranges are exposed as `xlrange()` table function.
 
@@ -108,7 +108,7 @@ A1:D100
 )
 ```
 
-## Query external files
+## Query External Files
 
 - Use database file as default database
 
@@ -129,7 +129,7 @@ A1:D100
 )
 ```
 
-## Parameter binding
+## Parameter Binding
 
 - Auto-incremented parameters:
 
@@ -208,7 +208,7 @@ F1:I200,
 )
 ```
 
-## Excel date and time helpers
+## Excel Date and Time Helpers
 
 Adds scalar functions to convert Excel date and time values stored as DOUBLE to DuckDB DATE, TIME and TIMESTAMP.
 
@@ -256,9 +256,7 @@ The result of the final statement is materialized and returned to Excel as a dyn
 
 ## Compiler Support
 
-Development and testing are performed primarily using:
-
-- MinGW-w64 (w64devkit)
+Development and testing are performed primarily using MinGW-w64 (w64devkit).
 
 Other toolchains such as Visual Studio (MSVC) may work but are currently unverified.
 
@@ -316,7 +314,7 @@ examples\test_cases.xlsx
 
 # References
 
-## SQL Placeholders
+## Parameter Binding
 
 | Type | Support | Note |
 |------|---------|------|
@@ -324,67 +322,63 @@ examples\test_cases.xlsx
 | Positional `$1` | ✅ | Must reset parameter index for **each statement** |
 | Named `$param` | ❌ | Excel doesn't support named parameter |
 
-## Worksheet Formulas
+## Formulas
 
 ### All Formulas
 
 | Function | Since | Syntax | Purpose | Equivalent xlDuckDB Formula |
 |----------|-------|---------|---------|-----------------------------|
 | DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
-| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | N/A |
+| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | |
 | DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
-| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL | N/A |
-| DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | N/A |
+| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL | |
+| DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | |
 
-### Usage Notes
+### Formular Parameters
 
-- Ranges must appear before scalar parameters.
-- When multiple SQL statements are supplied, all statements are
-executed sequentially, but only the result of the final statement
-is returned to Excel.
+- Only sql is required, other parameters can be ignored. For example: `=DUCKDB.EXECA( , A1)`
+- Ranges are exposed to `xlrange()` and must appear before bound parameters.
+- When multiple SQL statements are supplied, all statements are executed sequentially, but only the result of the final statement is returned to Excel.
 - Asynchronous formulas do not block Excel recalculation but they introduces overhead due to thread creation and deep copying of worksheet ranges.
-- Initialization SQL is executed before the main query and can be
-used to define reusable macros, views, or other helper objects.
+- Initialization SQL is executed before the main query and can be used to define reusable macros, views, or other helper objects.
 - Parameters are not bound in initialization SQL.
 
-## xlrange (DuckDB table function)
+## xlrange
 
-Exposes Excel ranges as DuckDB tables.
-
-### Syntax
+Exposes Excel ranges as table function.
 
 ```sql
 xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 ```
 
-### Usage Notes
+### Options
 
-| Parameter | Status | Default | Description |
-|-----------|---------|---------|-------------|
-| `index` | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
-| `sample` | 🟢 Optional | `30` | Number of data rows used for type inference. A value of `0` samples all data rows. |
-| `all_varchar` | 🟢 Optional | `false` | When `true`, all values are returned as `VARCHAR` and type inference is disabled. |
-| `header` | 🟢 Optional | `true` | When `true`, the first row is interpreted as column names. Column names must be valid, unique DuckDB identifiers. When `false`, column names are generated as `column_0`, `column_1`, ... |
-| `strict` | 🟢 Optional | `true` | When `true`, an error is raised if an empty column name is encountered. When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated columns name is change to `name`, `name_1`, `name_2`, ... This option is ignored when `header=false`. |
+| Parameter | Since | Status | Default | Description |
+|-----------|-------|--------|---------|-------------|
+| `index` | | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
+| `all_varchar` | | 🟢 Optional | `false` | When `true`, all values are returned as `VARCHAR` and type inference is disabled. |
+| `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference. A value of `0` samples all data rows. This option is ignored when `all_varchar=true`. |
+| `header` | 1.2.0 | 🟢 Optional | `true` | When `true`, the first row is interpreted as column names. Column names must be **valid, unique** DuckDB identifiers. When `false`, column names are generated as `column_0`, `column_1`, ... |
+| `strict` | 1.3.0 | 🟢 Optional | `true` | When `true`, an error is raised if an empty column name is encountered. When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated columns name is change to `name`, `name_1`, `name_2`, ... This option is ignored when `header=false`. |
 
 ### Type Mapping
 
 | Excel Value | DuckDB Type |
-|------------|-------------|
+|-------------|-------------|
 | Number | DOUBLE or INTEGER |
 | Boolean | BOOLEAN |
 | Text | VARCHAR |
-| Empty/Error | Ignored during inference |
+| Empty/Error | NULL |
 
-### Inference Strategy
+### Inference strategy
 
-1. Scan for the first non-empty value and use its type as the candidate column type. Integer-valued numeric cells are inferred as INTEGER when all sampled numeric values fit within INT32.
+1. Scan for the first non-empty value and use its type as the candidate column type. Whole-number numeric cells are inferred as INTEGER when all sampled values fit within the INT32 range.
 
 2. Sample the remaining rows up to the configured sample limit.
 
-3. If incompatible types are encountered, raise number error or fall back to VARCHAR.
+3. If incompatible types are encountered, the column type is promoted to DOUBLE or VARCHAR.
 
-## Date and time helpers (DuckDB scalar functions)
+## Date and Time Helpers
 
 | Function | Purpose | Syntax |
 |----------|---------|--------|
@@ -392,9 +386,13 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 | `xltime` | Convert the fractional portion of an Excel serial value to a DuckDB `TIME`. | `xltime(value)` |
 | `xldatetime` | Convert an Excel serial datetime value to a DuckDB `TIMESTAMP`. | `xldatetime(value)` |
 
----
+# Known Limitations
 
-# Limitations
+## Formular Can't Access Cells' Number Format
+
+When using `xlrange`, if header cells is DOUBLE formated as date, time. Column name will be registered as a numeric string. For example column name "46387" for December 31st, 2026.
+
+Workaround: Convert to text with `=TEXT()` formula first.
 
 ## Excel Worksheet Limits
 
@@ -413,41 +411,6 @@ Queries exceeding these limits are not supported.
 ## Excel Number Types
 
 Big DuckDB numeric types (BIGINT, HUGEINT, DECIMAL) may lose precision when converted to Excel numbers (DOUBLE).
-
-## Excel Date and Time
-
-Excel date and time values are stored internally as DOUBLE values.
-
-Use xldate(), xltime(), and xldatetime() when DuckDB DATE, TIME,
-or TIMESTAMP semantics are required.
-
-## DuckDB Composite Types
-
-Excel cells can only represent a limited set of scalar values.
-
-DuckDB composite types such as:
-
-- LIST
-- STRUCT
-- MAP
-- UNION
-- VARIANT
-
-are currently **not returned directly to Excel**.
-
-Attempting to return these types will return an error.
-
-Workaround:
-
-```sql
-SELECT CAST(my_struct AS VARCHAR)
-```
-
-or:
-
-```sql
-SELECT to_json(my_struct)
-```
 
 ## Excel Range-Based Data Exchange
 
@@ -478,18 +441,33 @@ LIMIT 1000
 
 Or only fetch aggregate data to the worksheet for the next step in your workflow.
 
-## Not Intended as a Large Data Storage Engine
+## DuckDB Composite Types
 
-This add-in is optimized for:
+Excel cells can only represent a limited set of scalar values.
 
-- Excel-centric workflows
-- Interactive analysis
-- Ad-hoc queries
-- Reporting
+DuckDB composite types such as:
 
-It is not intended to replace dedicated database systems or data engineering pipelines.
+- LIST
+- STRUCT
+- MAP
+- UNION
+- VARIANT
 
----
+are currently **not returned directly to Excel**.
+
+Attempting to return these types will return an error.
+
+Workaround:
+
+```sql
+SELECT CAST(my_struct AS VARCHAR)
+```
+
+or:
+
+```sql
+SELECT to_json(my_struct)
+```
 
 # Troubleshooting
 
@@ -517,62 +495,26 @@ Verify:
 - The destination spill range is empty.
 - There are enough rows and columns available to display the result.
 
----
-
 # Motivation
 
-DuckDB has fundamentally changed what is possible for local and offline analytics.
+DuckDB brings fast analytical SQL to a lightweight embedded database.
 
-Many analytical workflows traditionally relied on combinations of:
+This project brings DuckDB directly into Excel, enabling users to query, join, and analyze large datasets with SQL while staying in a familiar spreadsheet environment.
 
-- Database servers
-- ETL pipelines
-- Python notebooks
-- BI tools
+The goal is to make modern analytics more accessible to Excel users without requiring database servers, Python, or complex tooling.
 
-These tools can be difficult to deploy and are often unfamiliar to many office users and managers.
-
-These tasks can now be performed locally using a single embedded analytical database.
-
-One of the goals of this project is to bring that capability closer to everyday Excel users.
-
-Excel remains one of the most widely used analytical tools, especially among finance, accounting, auditing, operations, risk management, and business users. However, many analytical workloads have outgrown what traditional Excel formulas, PivotTables, Power Query and worksheets can efficiently handle.
-
-By combining Excel with DuckDB, users can:
-
-- Query large datasets using SQL
-- Join data sources efficiently
-- Perform analytical aggregations
-- Work with millions of records outside Excel's traditional calculation engine
-- Remain inside a familiar Excel environment
-
-The intention is not to replace data engineering or data science tools, but to lower the barrier for office users who need more analytical power than Excel alone can provide.
-
-Many office users already possess strong domain expertise but are often limited by tooling complexity.
-
-The goal of this project is to provide a practical path from traditional spreadsheet analysis to modern analytical workflows, enabling users to leverage SQL and DuckDB without requiring Python, complex frameworks, database servers, or specialized data engineering tools.
-
-Hopefully this add-in helps more people discover DuckDB and enables Excel users to work with larger datasets that would otherwise require complicated tooling, frameworks, or programming knowledge.
-
----
+Hopefully, this add-in helps more people discover DuckDB and work with larger datasets more effectively.
 
 # Acknowledgements
 
-Special thanks to the DuckDB team and contributors.
+Special thanks to the DuckDB team and contributors for creating an exceptional embedded analytical database.
 
-DuckDB is an extraordinary project that brings tremendous value to local and offline analytics. Its performance, simplicity, and embedded architecture make advanced analytical processing accessible to a much wider audience.
-
-This project would not exist without the work of the DuckDB community.
-
-Special thanks to xlDuckDB, which I have used in real-world workflows and which inspired the formula-based integration approach and the xlrange concept.
+This project was inspired by xlDuckDB, particularly its formula-based integration approach and the `xlrange` concept.
 
 Additional thanks to:
-- _troydhanson_ [uthash](https://troydhanson.github.io/uthash/)
+
+- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and _Arthur O'Dwyer_
 - Microsoft Excel XLL SDK
-
-Parts of this documentation were drafted with AI assistance and reviewed manually.
-
----
 
 # License
 
