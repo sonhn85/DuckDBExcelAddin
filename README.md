@@ -311,7 +311,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 | `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference. A value of `0` samples all data rows. This option is ignored when `all_varchar=true`. |
 | `header` | 1.2.0 | 🟢 Optional | `true` | When `true`, the first row is interpreted as column names. Column names must be **valid, unique** DuckDB identifiers. When `false`, column names are generated as `column_0`, `column_1`, ... |
 | `strict` | 1.3.0 | 🟢 Optional | `true` | When `true`, an error is raised if an empty column name is encountered. When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated column names are renamed to `name`, `name_1`, `name_2`, ... This option is ignored when `header=false`. |
-| `ignore_errors | 1.5.0 | 🟢 Optional | `false` | When `true` an error is raised if values incompatible with inferred type are encountered. When `false` incompatible values are **silently** converted to NULL. |
+| `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | When `true` an error is raised if values incompatible with inferred type are encountered. When `false` incompatible values are **silently** converted to NULL. |
 
 ### Type Mapping
 
