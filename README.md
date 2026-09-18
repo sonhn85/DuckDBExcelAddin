@@ -2,59 +2,29 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
 
-A native Microsoft Excel XLL add-in for querying Excel ranges with SQL using DuckDB.
+A native Microsoft Excel XLL add-in for querying Excel ranges with DuckDB SQL and parameter binding.
 
-Features:
+## Features
 
 - Native DuckDB integration
 - Query Excel ranges
-- Bind Excel values to SQL
+- Parameter binding from Excel values
 - Asynchronous execution
 - Lightweight deployment
 
-> Status: Stable
+## Status
+
+> **Stable**
 >
-> Core functionality is considered stable and suitable for
-> production use. Future releases will prioritize backward
-> compatibility with existing workbooks.
+> Core functionality is considered stable and suitable for production use. Future releases will prioritize backward compatibility with existing workbooks.
 
----
-
-# Screenshot
+## Screenshot
 
 ![Screenshot](docs/screenshot.jpg "Screenshot")
 
----
+## Feature comparison with xlDuckDB
 
-# Quick Summary
-
-✅ Query Excel ranges
-
-✅ Bind Excel values to SQL
-
-✅ Async Execution
-
-✅ Native Excel XLL
-
-✅ No .NET runtime dependency
-
-✅ Two-file deployment (`.xll` + `duckdb.dll`)
-
-✅ DuckDB 1.5+
-
-✅ Runtime DuckDB DLL upgrade
-
-✅ Included test and example workbook
-
----
-
-# Why This Project?
-
-This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb), which demonstrated integration between DuckDB and Microsoft Excel through an XLL add-in.
-
-The design goals of this project are slightly different.
-
-## Comparison with xlDuckDB
+This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb), an XLL add-in that integrates DuckDB with Microsoft Excel.
 
 | Feature | DuckDBExcelAddin | xlDuckDB |
 |----------|----------|----------|
@@ -62,20 +32,23 @@ The design goals of this project are slightly different.
 | Dynamic array (spill) results | ✅ | ✅ |
 | Query external files | ✅ | ✅ |
 | Query Excel ranges | ✅ | ✅ |
-| Use database file as default database | ✅ | ✅ |
-| Column type sampling option | ✅ | ❌ |
-| Bind Excel values to SQL | ✅ | ❌ |
+| Parameter binding from Excel values | ✅ | ❌ |
+| `xlrange` options | ✅ | ❌ |
 | Helpers for Excel date and time values | ✅ | ❌ |
 | Async execution | ✅ | ❓ |
-| Runtime DuckDB DLL upgrade | ✅ | ❓ |
 | XLL implementation | ✅ | ✅ |
 | .NET free | ✅ | ❌ |
+| Runtime DuckDB DLL upgrade | ✅ | ❓ |
 
 *Comparison based on publicly documented features available at the time of writing.*
 
+---
+
+# Tutorial
+
 ## Query Excel ranges
 
-Similar to xlDuckDB, Excel ranges are directly exposed as DuckDB tables.
+- Excel ranges are exposed as `xlrange()` table function.
 
 ```excel
 =DUCKDB.EXEC(
@@ -86,7 +59,7 @@ A1:D100
 )
 ```
 
-With inference options:
+- With inference options:
 
 ```excel
 =DUCKDB.EXEC(
@@ -106,7 +79,9 @@ A1:D100
 )
 ```
 
-If you want to use database file as default database like xlDuckDB, DuckDBExcelAddin (from 1.1.0) also supports:
+## Query external files
+
+### Use database file as default database
 
 ```excel
 =DUCKDB.EXECA(
@@ -115,11 +90,19 @@ If you want to use database file as default database like xlDuckDB, DuckDBExcelA
 )
 ```
 
-## Bind Excel values to SQL
+### Use DuckDB `read_xxx()` function
 
-### Supports DuckDB Placeholders
+```excel
+=DUCKDB.EXEC(
+"SELECT *
+ FROM read_duckdb('Path\db.duckdb', table_name='mytable')
+ LIMIT 100"
+)
+```
 
-* Auto-incremented:
+## Parameter binding from Excel values
+
+- Auto-incremented parameters:
 
 ```excel
 =DUCKDB.EXEC(
@@ -132,7 +115,7 @@ A1:D100,
 )
 ```
 
-* Positional:
+- Positional parameters
 
 ```excel
 =DUCKDB.EXEC(
@@ -145,9 +128,7 @@ A1:D100,
 )
 ```
 
-### Dynamic SQL Use Case
-
-* Dynamic range selector
+- Dynamic range selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -161,7 +142,7 @@ F1:I200,
 )
 ```
 
-* Dynamic file reader
+- Dynamic file reader
 
 ```excel
 =DUCKDB.EXEC(
@@ -173,7 +154,7 @@ F1:I200,
 )
 ```
 
-* Dynamic column selector
+- Dynamic column selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -186,7 +167,7 @@ F1:I200,
 )
 ```
 
-* Dynamic table selector
+- Dynamic table selector
 
 ```excel
 =DUCKDB.EXEC(
@@ -197,13 +178,6 @@ F1:I200,
 "mytable"
 )
 ```
-
-### Benefits
-
-- Safer query construction
-- No string concatenation in formulas
-- Reusable SQL templates
-- Natural DuckDB workflow
 
 ## Asynchronous Execution
 
