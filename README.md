@@ -64,7 +64,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 
 ## Requirements
 
-- Microsoft Excel 64-bit with Dynamic Array (Spill Range) support
+- Microsoft Excel 64-bit with Dynamic Array (Spill Range) support:
   - Microsoft 365 Excel
   - Excel 2024
   - Excel 2021
@@ -96,7 +96,7 @@ with a newer compatible version.
 
 ## Query Excel Ranges
 
-- Excel ranges are exposed as `xlrange()` table function.
+- Excel ranges are exposed as `xlrange()` table function:
 
 ```excel
 =DUCKDB.EXEC(
@@ -129,7 +129,7 @@ A1:D100
 
 ## Query External Files
 
-- Use database file as default database
+- Use database file as default database:
 
 ```excel
 =DUCKDB.EXECA(
@@ -138,7 +138,7 @@ A1:D100
 )
 ```
 
-- Use DuckDB `read_xxx()` function
+- Use DuckDB `read_xxx()` functions:
 
 ```excel
 =DUCKDB.EXEC(
@@ -163,7 +163,7 @@ A1:D100,
 )
 ```
 
-- Positional parameters
+- Positional parameters:
 
 ```excel
 =DUCKDB.EXEC(
@@ -176,7 +176,7 @@ A1:D100,
 )
 ```
 
-- Dynamic range selector
+- Dynamic range selector:
 
 ```excel
 =DUCKDB.EXEC(
@@ -190,7 +190,7 @@ F1:I200,
 )
 ```
 
-- Dynamic file reader
+- Dynamic file reader:
 
 ```excel
 =DUCKDB.EXEC(
@@ -202,7 +202,7 @@ F1:I200,
 )
 ```
 
-- Dynamic column selector
+- Dynamic column selector:
 
 ```excel
 =DUCKDB.EXEC(
@@ -215,7 +215,7 @@ F1:I200,
 )
 ```
 
-- Dynamic table selector
+- Dynamic table selector:
 
 ```excel
 =DUCKDB.EXEC(
@@ -229,7 +229,7 @@ F1:I200,
 
 ## Excel Date and Time Helpers
 
-Adds scalar functions to convert Excel date and time values stored as DOUBLE to DuckDB DATE, TIME and TIMESTAMP.
+Adds scalar functions to convert Excel date and time values stored as DOUBLE to DuckDB DATE, TIME and TIMESTAMP:
 
 ```excel
 =DUCKDB.EXEC(
@@ -272,8 +272,8 @@ The result of the final statement is materialized and returned to Excel as a dyn
 | Type | Support | Note |
 |------|---------|------|
 | Auto incremented `?` | ✅ | |
-| Positional `$1` | ✅ | Must reset parameter index for **each statement** |
-| Named `$param` | ❌ | Excel doesn't support named parameters |
+| Positional `$1` | ✅ | Must reset parameter index for **each statement**. |
+| Named `$param` | ❌ | Excel doesn't support named parameters. |
 
 ## Formulas
 
@@ -281,15 +281,15 @@ The result of the final statement is materialized and returned to Excel as a dyn
 
 | Function | Since | Syntax | Purpose | Equivalent xlDuckDB Formula |
 |----------|-------|---------|---------|-----------------------------|
-| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database | `=DuckDBQuery(sql,, range)` |
-| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database | |
-| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using a DuckDB file as the default database | `=DuckDBQuery(sql, dbfilepath, range)` |
-| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL | |
-| DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information | |
+| DUCKDB.EXEC / DUCKDB.EXEC.ASYNC | | `=DUCKDB.EXEC(sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using in-memory database. | `=DuckDbQuery(sql,, range)` |
+| DUCKDB.EXECX / DUCKDB.EXECX.ASYNC | | `=DUCKDB.EXECX([init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute initialization SQL, then main SQL using in-memory database. | |
+| DUCKDB.EXECA / DUCKDB.EXECA.ASYNC | 1.1.0 | `=DUCKDB.EXECA([db_file_path], sql, [range1], [range2], ..., [param1], [param2], ...)` | Execute SQL using a DuckDB file as the default database. | `=DuckDbQuery(sql, dbfilepath, range)` |
+| DUCKDB.EXECAX / DUCKDB.EXECAX.ASYNC | 1.1.0 | `=DUCKDB.EXECAX([db_file_path], [init_sql], sql, [range1], [range2], ..., [param1], [param2], ...)` | EXECA plus initialization SQL. | |
+| DUCKDB.INFO | | `=DUCKDB.INFO()` | Return add-in and DuckDB runtime information. | |
 
 ### Formula Parameters
 
-- Only sql is required, other parameters can be ignored. For example: `=DUCKDB.EXECA( , A1)`
+- Only sql is required, other parameters can be ignored. For example: `=DUCKDB.EXECA( , A1)`.
 - Ranges are exposed to `xlrange()` and must appear before bound parameters.
 - When multiple SQL statements are supplied, all statements are executed sequentially, but only the result of the final statement is returned to Excel.
 - Asynchronous formulas do not block Excel recalculation, but they introduce overhead due to thread creation and deep copying of worksheet ranges.
@@ -300,6 +300,8 @@ The result of the final statement is materialized and returned to Excel as a dyn
 
 Exposes Excel ranges as table function.
 
+Syntax:
+
 ```sql
 xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 ```
@@ -309,11 +311,11 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 | Parameter | Since | Status | Default | Description |
 |-----------|-------|--------|---------|-------------|
 | `index` | | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
-| `all_varchar` | | 🟢 Optional | `false` | When `true`, all values are returned as `VARCHAR` and type inference is disabled. |
-| `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference. A value of `0` samples all data rows. This option is ignored when `all_varchar=true`. |
-| `header` | 1.2.0 | 🟢 Optional | `true` | When `true`, the first row is interpreted as column names. Column names must be **non-empty and unique**. When `false`, column names are generated as `column_0`, `column_1`, ... |
-| `strict` | 1.3.0 | 🟢 Optional | `true` | When `true`, an error is raised if an empty column name is encountered. When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated column names are renamed to `name`, `name_1`, `name_2`, ... This option is ignored when `header=false`. |
-| `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | When `true` an error is raised if values incompatible with inferred type are encountered. When `false` incompatible values are **silently** converted to NULL. |
+| `all_varchar` | | 🟢 Optional | `false` | - When `true`, all values are returned as `VARCHAR` and type inference is disabled.<br>- When `false`, column type is inferred. |
+| `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference.<br>- A value of `0` samples all data rows.<br>- This option is ignored when `all_varchar=true`. |
+| `header` | 1.2.0 | 🟢 Optional | `true` | - When `true`, the first row is interpreted as column names. Column names must be **non-empty and unique**.<br>- When `false`, column names are generated as `column_0`, `column_1`, ... |
+| `strict` | 1.3.0 | 🟢 Optional | `true` | - When `true`, an error is raised if an empty column name is encountered.<br>- When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated column names are renamed to `name`, `name_1`, `name_2`, ...<br>- This option is ignored when `header=false`. |
+| `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | - When `true` an error is raised if values incompatible with inferred type are encountered.<br>- When `false` incompatible values are **silently** converted to NULL. |
 
 ### Type Mapping
 
@@ -344,9 +346,9 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 
 ## Formulas Cannot Access Cell Number Formats
 
-When using `xlrange`, if header cells are numeric values formatted as dates or times. The Column names are registered as numeric strings. For example, the column name "46387" for December 31st, 2026.
+When using `xlrange`, if header cells are numeric values formatted as dates or times. The Column names are registered as numeric strings. For example, the column will be name "46387" for Excel date December 31st, 2026.
 
-Workaround: Convert to text with `=TEXT()` formula first.
+Workaround: Convert Excel date to text with `=TEXT(value, date_format)` formula first.
 
 ## Excel Worksheet Limits
 
@@ -384,7 +386,7 @@ LIMIT 1000
 
 ## DuckDB Composite Types
 
-The following DuckDB types cannot be returned directly to Excel:
+The following DuckDB types are not supported as Excel results:
 
 - LIST
 - STRUCT
@@ -392,43 +394,17 @@ The following DuckDB types cannot be returned directly to Excel:
 - UNION
 - VARIANT
 
-Attempting to return these types results in an error.
-
-Workaround:
-
-```sql
-SELECT CAST(my_struct AS VARCHAR)
-```
-
-```sql
-SELECT to_json(my_struct)
-```
+Workaround: Cast the value to `VARCHAR`.
 
 # Troubleshooting
 
-## Add-in fails to load
+## Troubleshooting
 
-Verify:
-
-- Excel is 64-bit
-- duckdb.dll is located next to DuckDBExcelAddIn.xll
-- duckdb.dll version is 1.5.x
-- The add-in is not blocked
-
-## #VALUE! returned
-
-Verify:
-
-- Add-in is loaded
-- Dynamic Arrays are supported
-- Result size does not exceed Excel limits
-
-## #SPILL! error
-
-Verify:
-
-- The destination spill range is empty.
-- There are enough rows and columns available to display the result.
+| Issue | Verify |
+|---------|---------|
+| Add-in fails to load | - Excel is 64-bit<br>- `duckdb.dll` is located next to `DuckDBExcelAddIn.xll`<br>- `duckdb.dll` version is 1.5.x<br>- The add-in is not blocked |
+| `#VALUE!` returned | - The add-in is loaded<br>- Dynamic Arrays are supported<br>- Input ranges and Result size do not exceed Excel limits |
+| `#SPILL!` error | - The destination spill range is empty<br>- There are enough rows and columns available to display the result |
 
 # Building
 
@@ -436,11 +412,11 @@ Verify:
 
 - Excel XLL SDK
 - DuckDB C API (`duckdb.h`)
-- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and _Arthur O'Dwyer_
+- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and maintained _Arthur O'Dwyer_
 
 ## Compiler Support
 
-Development and testing are performed primarily using MinGW-w64 (w64devkit).
+Development and testing are performed primarily using w64devkit (MinGW-w64).
 
 Other toolchains such as Visual Studio (MSVC) may work but are currently unverified.
 
@@ -448,23 +424,15 @@ Contributions and testing reports are welcome.
 
 ## Build Notes
 
-Some versions of `XLCALL.H` contain a struct member named:
+`XLCALL.H` `XLOPER` struct contain a member named:
 
 ```c
 bool
 ```
 
-which conflicts with the C99/C11 keyword.
+which conflicts with C `bool` keyword.
 
-You may need to modify the SDK header locally.
-
-Example:
-
-```c
-bool
-```
-
-rename to:
+You need to edit the header and rename the member to, for example:
 
 ```c
 xbool
@@ -472,7 +440,7 @@ xbool
 
 and update the corresponding references in `FRAMEWRK.C`.
 
-This modification only affects local compilation and does not affect runtime behavior.
+This modification only affects local compilation and does not affect runtime behavior because `XLOPER` is never used.
 
 ## Build instruction
 
@@ -504,7 +472,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 
 Additional thanks to:
 
-- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and _Arthur O'Dwyer_
+- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and  maintained _Arthur O'Dwyer_
 - Microsoft Excel XLL SDK
 
 # License
