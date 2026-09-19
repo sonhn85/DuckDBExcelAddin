@@ -1,56 +1,63 @@
-DUCKDB_INC_PATH = libduckdb-windows-amd64
-EXCEL_SDK_PATH = Excel2013XLLSDK
+DUCKDB_INC_PATH ?= libduckdb-windows-amd64
+EXCEL_SDK_PATH ?= Excel2013XLLSDK
+ADDIN_VERSION ?= dev
 
-EXCEL_SDK_SRC_PATH = $(EXCEL_SDK_PATH)/SRC
-EXCEL_SDK_INC_PATH = $(EXCEL_SDK_PATH)/INCLUDE
-FRAMEWRK_PATH = $(EXCEL_SDK_PATH)/SAMPLES/FRAMEWRK
-FRAMEWRK_SRC_PATH = $(FRAMEWRK_PATH)
-FRAMEWRK_INC_PATH = $(FRAMEWRK_PATH)
-UTHASH_INC_PATH = lib/uthash
+SRC_DIR := src
+INC_DIR := include
+BUILD_DIR := build
 
-ADDIN_VERSION := dev
+EXCEL_SDK_SRC_PATH := $(EXCEL_SDK_PATH)/SRC
+EXCEL_SDK_INC_PATH := $(EXCEL_SDK_PATH)/INCLUDE
+FRAMEWRK_PATH := $(EXCEL_SDK_PATH)/SAMPLES/FRAMEWRK
+FRAMEWRK_SRC_PATH := $(FRAMEWRK_PATH)
+FRAMEWRK_INC_PATH := $(FRAMEWRK_PATH)
+UTHASH_INC_PATH := lib/uthash
 
-CFLAGS = -DADDIN_VERSION=\"$(ADDIN_VERSION)\"
+CPPFLAGS := -I$(INC_DIR) -I$(SRC_DIR) -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) -I$(FRAMEWRK_INC_PATH) -I$(UTHASH_INC_PATH)
+CFLAGS := -O2 -DADDIN_VERSION=\"$(ADDIN_VERSION)\"
 
 .DEFAULT_GOAL := help
 
-memorypool.o:
-	g++ -O2 -c -o $@ -I$(FRAMEWRK_INC_PATH) $(FRAMEWRK_SRC_PATH)/memorypool.cpp
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-memorymanager.o:
-	g++ -O2 -c -o $@ -I$(FRAMEWRK_INC_PATH) $(FRAMEWRK_SRC_PATH)/memorymanager.cpp
+$(BUILD_DIR)/memorypool.o: $(FRAMEWRK_SRC_PATH)/memorypool.cpp | $(BUILD_DIR)
+	g++ $(CFLAGS) -c -o $@ -I$(FRAMEWRK_INC_PATH) $<
 
-framewrk.o:
-	gcc -O2 -c -o $@ -I$(FRAMEWRK_INC_PATH) -I$(EXCEL_SDK_INC_PATH) -I$(EXCEL_SDK_SRC_PATH) $(FRAMEWRK_SRC_PATH)/framewrk.c
+$(BUILD_DIR)/memorymanager.o: $(FRAMEWRK_SRC_PATH)/memorymanager.cpp | $(BUILD_DIR)
+	g++ $(CFLAGS) -c -o $@ -I$(FRAMEWRK_INC_PATH) $<
 
-excel4workaround.o:
-	gcc -O2 -c -o $@ -I$(EXCEL_SDK_INC_PATH) excel4workaround.c
+$(BUILD_DIR)/framewrk.o: $(FRAMEWRK_SRC_PATH)/framewrk.c | $(BUILD_DIR)
+	gcc $(CFLAGS) -c -o $@ -I$(FRAMEWRK_INC_PATH) -I$(EXCEL_SDK_INC_PATH) -I$(EXCEL_SDK_SRC_PATH) $<
 
-helper.o: helper.c helper.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) $<
+$(BUILD_DIR)/excel4workaround.o: $(SRC_DIR)/excel4workaround.c | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 
-db_lib_loader.o: db_lib_loader.c db_lib_loader.h helper.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+$(BUILD_DIR)/helper.o: $(SRC_DIR)/helper.c $(INC_DIR)/helper.h $(SRC_DIR)/helper.c | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 
-db_xlrange.o: db_xlrange.c db_xlrange.h helper.h db_lib_loader.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) -I$(FRAMEWRK_INC_PATH) -I$(UTHASH_INC_PATH) $<
+$(BUILD_DIR)/db_lib_loader.o: $(SRC_DIR)/db_lib_loader.c $(INC_DIR)/db_lib_loader.h $(INC_DIR)/helper.h $(INC_DIR)/config.h | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 
-db_scalar_funcs.o: db_scalar_funcs.c db_scalar_funcs.h db_lib_loader.h helper.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+$(BUILD_DIR)/db_xlrange.o: $(SRC_DIR)/db_xlrange.c $(INC_DIR)/db_xlrange.h $(INC_DIR)/helper.h $(INC_DIR)/db_lib_loader.h $(INC_DIR)/config.h | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -I$(FRAMEWRK_INC_PATH) -I$(UTHASH_INC_PATH) -o $@ $<
 
-db_fetch.o: db_fetch.c db_xlrange.h helper.h db_lib_loader.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+$(BUILD_DIR)/db_scalar_funcs.o: $(SRC_DIR)/db_scalar_funcs.c $(INC_DIR)/db_scalar_funcs.h $(INC_DIR)/db_lib_loader.h $(INC_DIR)/helper.h $(INC_DIR)/config.h | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 
-DuckDBExcelAddin.o: DuckDBExcelAddin.c DuckDBExcelAddin.h helper.h db_lib_loader.h db_xlrange.h db_fetch.h config.h
-	gcc -O2 -c $(CFLAGS) -o $@ -I. -I$(EXCEL_SDK_INC_PATH) -I$(FRAMEWRK_INC_PATH) -I$(DUCKDB_INC_PATH) $<
+$(BUILD_DIR)/db_fetch.o: $(SRC_DIR)/db_fetch.c $(INC_DIR)/db_fetch.h $(INC_DIR)/helper.h $(INC_DIR)/db_lib_loader.h $(INC_DIR)/config.h | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -o $@ $<
 
-DuckDBExcelAddin.xll: memorypool.o memorymanager.o framewrk.o excel4workaround.o helper.o db_lib_loader.o db_scalar_funcs.o db_xlrange.o db_fetch.o DuckDBExcelAddin.o
+$(BUILD_DIR)/DuckDBExcelAddin.o: $(SRC_DIR)/DuckDBExcelAddin.c $(INC_DIR)/DuckDBExcelAddin.h $(INC_DIR)/helper.h $(INC_DIR)/db_lib_loader.h $(INC_DIR)/db_xlrange.h $(INC_DIR)/db_fetch.h $(INC_DIR)/config.h | $(BUILD_DIR)
+	gcc $(CFLAGS) -c $(CPPFLAGS) -I$(FRAMEWRK_INC_PATH) -o $@ $<
+
+DuckDBExcelAddin.xll: $(BUILD_DIR)/memorypool.o $(BUILD_DIR)/memorymanager.o $(BUILD_DIR)/framewrk.o $(BUILD_DIR)/excel4workaround.o $(BUILD_DIR)/helper.o $(BUILD_DIR)/db_lib_loader.o $(BUILD_DIR)/db_scalar_funcs.o $(BUILD_DIR)/db_xlrange.o $(BUILD_DIR)/db_fetch.o $(BUILD_DIR)/DuckDBExcelAddin.o
 	gcc -shared -o $@ $^ -lpathcch -lstdc++
 
 xll: DuckDBExcelAddin.xll
 
 clean:
-	rm -f *.o
+	rm -rf $(BUILD_DIR)
 	rm -f *.xll
 
 help:
