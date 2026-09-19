@@ -26,18 +26,17 @@
  *
  * When all_varchar = true, all values are returned as VARCHAR
  * and type inference is disabled.
+ * Defaults to false
  *
- * When header = true, the first row is interpreted as column names.
- * Defaults to true.
+ * When header = true (default), the first row is interpreted as column names.
+ * When header = false, column names are generated as column_0, column_1, ...
  *
- * When strict = true, empty or whitespace-only header names are rejected.
- * When strict = false, generated names such as unnamed_0 are used for empty
- * headers, and duplicate names receive a numeric suffix.
- * Defaults to true.
+ * When strict = true (default), column names must be non-empty and unique or an error is raised.
+ * When strict = false, empty column names are generated as unnamed_0, unnamed_1, ...
+ * and duplicated column names are renamed to name, name_1, name_2, ...
  *
- * When ignore_errors = true, values that cannot be converted to the inferred
- * column type are returned as NULL. When false, conversion errors abort the
- * scan. Defaults to false.
+ * When ignore_errors = false (default), an error is raised if values incompatible with inferred type are encountered.
+ * When ignore_errors = true, incompatible values are silently converted to NULL.
  *
  * Returns:
  *   1 on success.
