@@ -346,7 +346,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
 
 ## Excel Number Formats
 
-Formulas Cannot Access Cell Number Formats.
+Formulas cannot access cell number formats.
 
 When using `xlrange`, if header cells are numeric values formatted as dates or times. The Column names are registered as numeric strings. For example, the column will be name "46387" for Excel date December 31st, 2026.
 
