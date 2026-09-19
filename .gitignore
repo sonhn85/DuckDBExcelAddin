@@ -1,23 +1,12 @@
 # Compiled object files
 *.o
-*.obj
 
 # Native build outputs
 *.xll
-*.lib
-*.exp
-*.pdb
-*.map
 
 # Generated output directories
 /build/
-/bin/
-/out/
 /dist/
-Debug/
-Release/
-x64/
-x86/
 
 # Runtime dependency
 duckdb.dll
@@ -30,4 +19,3 @@ duckdb.dll
 
 # OS junk
 Thumbs.db
-.DS_Store
