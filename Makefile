@@ -93,7 +93,7 @@ $(XLL_OUT): $(OBJECTS) | $(DIST_DIR)
 xll: $(XLL_OUT)
 
 clean:
-	rm -rf $(BUILD_DIR) $(DIST_DIR)
+	rm -rf $(BUILD_DIR) $(XLL_OUT)
 
 help:
 	@echo "DuckDB Excel Add-in Build"
