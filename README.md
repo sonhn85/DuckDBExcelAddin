@@ -303,7 +303,7 @@ Exposes Excel ranges as table function.
 Syntax:
 
 ```sql
-xlrange(index, sample=n, all_varchar=false, header=true, strict=true)
+xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_errors=false)
 ```
 
 ### Options
