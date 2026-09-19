@@ -1,8 +1,30 @@
-# Ignore compiled object files
+# Compiled object files
 *.o
+*.obj
 
-# Ignore Excel add-in binaries
+# Native build outputs
 *.xll
+*.lib
+*.exp
+*.pdb
+*.map
 
-# Ignore dll
-*.dll
+# Build directories
+build/
+bin/
+out/
+dist/
+Debug/
+Release/
+x64/
+x86/
+
+# Temporary / generated files
+*.tmp
+*.log
+*.bak
+*~
+
+# OS junk
+Thumbs.db
+.DS_Store
