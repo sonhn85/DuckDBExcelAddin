@@ -1,6 +1,6 @@
 # DuckDBExcelAddin
 
-[![DuckDB](https://img.shields.io/badge/DuckDB-1.5x-orange)](https://duckdb.org/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.x-orange)](https://duckdb.org/)
 [![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)](#requirements)
 [![Excel 365](https://img.shields.io/badge/Excel-365-green)](#requirements)
 [![Excel 2024](https://img.shields.io/badge/Excel-2024-green)](#requirements)
@@ -68,7 +68,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
   - Microsoft 365 Excel
   - Excel 2024
   - Excel 2021
-- DuckDB 1.5.0 or later (`duckdb.dll`)
+- DuckDB 1.5.x (`duckdb.dll`)
 
 ## Enable the Add-in
 
@@ -412,7 +412,7 @@ Verify:
 
 - Excel is 64-bit
 - duckdb.dll is located next to DuckDBExcelAddIn.xll
-- duckdb.dll minimum version is 1.5.0
+- duckdb.dll version is 1.5.x
 - The add-in is not blocked
 
 ## #VALUE! returned
