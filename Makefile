@@ -2,7 +2,6 @@
 #   make CC=clang CXX=clang++
 CC ?= gcc
 CXX ?= g++
-LD ?= $(CC)
 
 DUCKDB_INC_PATH ?= libduckdb-windows-amd64
 EXCEL_SDK_PATH ?= Excel2013XLLSDK
@@ -89,7 +88,7 @@ $(BUILD_DIR)/DuckDBExcelAddin.o: $(SRC_DIR)/DuckDBExcelAddin.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 $(XLL_OUT): $(OBJECTS) | $(DIST_DIR)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 xll: $(XLL_OUT)
 
