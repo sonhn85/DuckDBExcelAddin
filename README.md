@@ -400,8 +400,6 @@ Workaround: Cast the value to `VARCHAR`.
 
 # Troubleshooting
 
-## Troubleshooting
-
 | Issue | Verify |
 |---------|---------|
 | Add-in fails to load | - Excel is 64-bit<br>- `duckdb.dll` is located next to `DuckDBExcelAddIn.xll`<br>- `duckdb.dll` version is 1.5.x<br>- The add-in is not blocked |
