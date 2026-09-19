@@ -3,7 +3,6 @@
 *.obj
 
 # Native build outputs
-*.xll
 *.lib
 *.exp
 *.pdb
@@ -18,6 +17,9 @@ Debug/
 Release/
 x64/
 x86/
+
+# Generated runtime dependency
+duckdb.dll
 
 # Temporary / generated files
 *.tmp
