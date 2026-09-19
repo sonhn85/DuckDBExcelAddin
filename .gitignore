@@ -3,22 +3,23 @@
 *.obj
 
 # Native build outputs
+*.xll
 *.lib
 *.exp
 *.pdb
 *.map
 
-# Build directories
-build/
-bin/
-out/
-dist/
+# Generated output directories
+/build/
+/bin/
+/out/
+/dist/
 Debug/
 Release/
 x64/
 x86/
 
-# Generated runtime dependency
+# Runtime dependency
 duckdb.dll
 
 # Temporary / generated files
