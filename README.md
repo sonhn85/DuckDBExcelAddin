@@ -326,7 +326,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 | Text | VARCHAR |
 | Empty/Error | NULL |
 
-### Inference strategy
+### Inference Strategy
 
 1. Scan for the first non-empty value and use its type as the candidate column type. Whole-number numeric cells are inferred as INTEGER when all sampled values fit within the INT32 range.
 
@@ -414,7 +414,7 @@ Workaround: Cast the value to `VARCHAR`.
 - DuckDB C API (`duckdb.h`)
 - [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and maintained _Arthur O'Dwyer_
 
-## Compiler Support
+## Toolchain
 
 Development and testing are performed primarily using w64devkit (MinGW-w64).
 
@@ -442,7 +442,7 @@ and update the corresponding references in `FRAMEWRK.C`.
 
 This modification only affects local compilation and does not affect runtime behavior because `XLOPER` is never used.
 
-## Build instruction
+## Build Instruction
 
 - Development
 
