@@ -11,8 +11,8 @@
  *
  * Supported signatures:
  *   xlrange(index)
- *   xlrange(index, sample = n)
- *   xlrange(index, all_varchar = true)
+ *   xlrange(index, sample = XLRANGE_DEFAULT_SAMPLE_COUNT)
+ *   xlrange(index, all_varchar = false)
  *   xlrange(index, header = true)
  *   xlrange(index, strict = true)
  *   xlrange(index, ignore_errors = false)
