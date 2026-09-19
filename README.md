@@ -500,7 +500,7 @@ examples\test_cases.xlsx
 
 Special thanks to the DuckDB team and contributors for creating an exceptional embedded analytical database.
 
-This project was inspired by xlDuckDB, particularly its formula-based integration approach and the `xlrange` concept.
+This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb), particularly its formula-based integration approach and the `xlrange` concept.
 
 Additional thanks to:
 
