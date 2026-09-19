@@ -1,8 +1,21 @@
-# Ignore compiled object files
+# Compiled object files
 *.o
 
-# Ignore Excel add-in binaries
+# Native build outputs
 *.xll
 
-# Ignore dll
-*.dll
+# Generated output directories
+/build/
+/dist/
+
+# Runtime dependency
+duckdb.dll
+
+# Temporary / generated files
+*.tmp
+*.log
+*.bak
+*~
+
+# OS junk
+Thumbs.db
