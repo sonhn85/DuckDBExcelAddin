@@ -1,10 +1,10 @@
 # DuckDBExcelAddin
 
-![DuckDB](https://img.shields.io/badge/DuckDB-1.5%2B-orange)
-![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)
-![Excel 365](https://img.shields.io/badge/Excel-365-green)
-![Excel 2024](https://img.shields.io/badge/Excel-2024-green)
-![Excel 2021](https://img.shields.io/badge/Excel-2021-green)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.5x-orange)](https://duckdb.org/)
+[![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)](#requirements)
+[![Excel 365](https://img.shields.io/badge/Excel-365-green)](#requirements)
+[![Excel 2024](https://img.shields.io/badge/Excel-2024-green)](#requirements)
+[![Excel 2021](https://img.shields.io/badge/Excel-2021-green)](#requirements)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 A native Microsoft Excel XLL add-in for querying Excel ranges with DuckDB SQL and parameter binding.
@@ -62,7 +62,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 
 # Installation
 
-## Requirement
+## Requirements
 
 - Microsoft Excel 64-bit with Dynamic Array (Spill Range) support
   - Microsoft 365 Excel
