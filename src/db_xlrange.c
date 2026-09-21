@@ -568,7 +568,10 @@ static int get_column_names
 	cleanup:
 
 		if (XLOPER12_TYPE(str_cell) != xltypeNil)
+		{
 			Excel12f(xlFree, NULL, 1, &str_cell);
+			str_cell.xltype = xltypeNil;
+		}
 
 		for (size_t j = 0; j < i; j++)
 		{
@@ -632,26 +635,53 @@ static inline char *trim_whitespace(char *s, size_t *out_len)
 /*
  * Infer DuckDB type from a string cell value.
  * - Trims whitespace and checks if the string represents:
- *   • INTEGER: parsed fully by strtoll within INT32 range
+ *   • INTEGER: whole number within INT32 range
  *   • DOUBLE: parsed fully by strtod, finite, promoted to INTEGER if whole number
  *   • BOOLEAN: matches common forms ("Y/N", "y/n" "T/F", "t/f", "YES/NO" "yes/no", "ON/OFF", "on/off", "TRUE/FALSE", "true/false")
+ *   • NULL: "NULL", "N/A", "null", "n/a"
  * - Falls back to VARCHAR if no match.
  * Return: DUCKDB_TYPE_INTEGER, DUCKDB_TYPE_DOUBLE, DUCKDB_TYPE_BOOLEAN, or DUCKDB_TYPE_VARCHAR.
  */
-static inline duckdb_type infer_xlstr(wchar_t *xlstr)
+static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 {
 	char *s = NULL;
 	if (!xlstr
 		|| xlstr_to_utf8(&s, xlstr, NULL) == 0
 		|| !s)
 	{
-		return DUCKDB_TYPE_VARCHAR;
+		return xltypeStr;
 	}
 	
-	duckdb_type type;
+	WORD type;
 	
 	size_t n;
 	char *trimmed = trim_whitespace(s, &n);
+
+	if (n == 0)
+	{
+		type = xltypeNil;
+		goto cleanup;
+	}
+
+	char *endptr = NULL;
+	errno = 0;
+	double d = strtod(trimmed, &endptr);
+	if (errno != ERANGE 
+		&& endptr != trimmed
+		&& endptr == trimmed + n
+		&& isfinite(d))
+	{
+		if (is_whole_number(d))
+		{
+			type = xltypeInt;
+			goto cleanup;
+		}
+		else
+		{
+			type = xltypeNum;
+			goto cleanup;
+		}
+	}
 
 	switch (n)
 	{
@@ -667,7 +697,7 @@ static inline duckdb_type infer_xlstr(wchar_t *xlstr)
 				case 'F':
 				case 'f':
 				{
-					type = DUCKDB_TYPE_BOOLEAN;
+					type = xltypeBool;
 					goto cleanup;
 				}
 
@@ -681,17 +711,22 @@ static inline duckdb_type infer_xlstr(wchar_t *xlstr)
 			if (strncasecmp(trimmed, "no", n) == 0
 				|| strncasecmp(trimmed, "on", n) == 0)
 			{
-				type = DUCKDB_TYPE_BOOLEAN;
+				type = xltypeBool;
 				goto cleanup;
 			}
-			
+
 			break;
 
 		case 3:
 			if (strncasecmp(trimmed, "yes", n) == 0
 				|| strncasecmp(trimmed, "off", n) == 0)
 			{
-				type = DUCKDB_TYPE_BOOLEAN;
+				type = xltypeBool;
+				goto cleanup;
+			}
+			else if (strncasecmp(trimmed, "n/a", n) == 0)
+			{
+				type = xltypeNil;
 				goto cleanup;
 			}
 
@@ -700,7 +735,12 @@ static inline duckdb_type infer_xlstr(wchar_t *xlstr)
 		case 4:
 			if (strncasecmp(trimmed, "true", n) == 0)
 			{
-				type = DUCKDB_TYPE_BOOLEAN;
+				type = xltypeBool;
+				goto cleanup;
+			}
+			else if (strncasecmp(trimmed, "null", n) == 0)
+			{
+				type = xltypeNil;
 				goto cleanup;
 			}
 
@@ -709,7 +749,7 @@ static inline duckdb_type infer_xlstr(wchar_t *xlstr)
 		case 5:
 			if (strncasecmp(trimmed, "false", n) == 0)
 			{
-				type = DUCKDB_TYPE_BOOLEAN;
+				type = xltypeBool;
 				goto cleanup;
 			}
 
@@ -719,40 +759,7 @@ static inline duckdb_type infer_xlstr(wchar_t *xlstr)
 			break;
 	}
 
-	char *endptr = NULL;
-	errno = 0;
-	long long i = strtoll(trimmed, &endptr, 10);
-	if (errno != ERANGE 
-		&& endptr != trimmed
-		&& endptr == trimmed + n
-		&& i >= INT32_MIN
-		&& i <= INT32_MAX)
-	{
-		type = DUCKDB_TYPE_INTEGER;
-		goto cleanup;
-	}
-
-	endptr = NULL;
-	errno = 0;
-	double d = strtod(trimmed, &endptr);
-	if (errno != ERANGE 
-		&& endptr != trimmed
-		&& endptr == trimmed + n
-		&& isfinite(d))
-	{
-		if (is_whole_number(d))
-		{
-			type = DUCKDB_TYPE_INTEGER;
-			goto cleanup;
-		}
-		else
-		{
-			type = DUCKDB_TYPE_DOUBLE;
-			goto cleanup;
-		}
-	}
-
-	type = DUCKDB_TYPE_VARCHAR;
+	type = xltypeStr;
 
 cleanup:
 
@@ -763,8 +770,9 @@ cleanup:
 
 /*
  * Inference strategy:
- * 1. Scan for the first non-empty value in the column
- *    and use its type as the candidate type.
+*  1. Scan for the first non-null value in the column and
+*     use its type as the candidate type. Empty strings,
+*     "N/A", and "NULL" are treated as nulls.
  * 2. Whole-number numeric cells are inferred as INTEGER
  *    when all sampled values fit within the INT32 range.
  * 3. Sample the remaining rows up to the configured sample limit.
@@ -791,10 +799,9 @@ static int infer_types
 
         if (!all_varchar && ndatarows > 0)
         {
-            /* First data cell */
             LPXLOPER12 cell = has_header ? data + ncols : data;
 
-            /* Sample first non-empty value */
+            /* Sample first non-null value */
             size_t sample_idx;
 
             for (sample_idx = 0; sample_idx < nsample; sample_idx++, cell += ncols)
@@ -818,7 +825,11 @@ static int infer_types
 				}
                 else if (cell_type == xltypeStr)
                 {
-					xltype = infer_xlstr(cell->val.str);
+					WORD type = get_xlstr_represented_type(cell->val.str);
+					if (type == xltypeNil)
+						continue;
+
+					xltype = type;
 					break;
                 }
             }
@@ -849,14 +860,18 @@ static int infer_types
                         }
 						else if (cell_type == xltypeStr)
 						{
-							duckdb_type type = infer_xlstr(cell->val.str);
+							WORD type = get_xlstr_represented_type(cell->val.str);
 							
-							if (type == DUCKDB_TYPE_DOUBLE)
+							if (type == xltypeNil)
+							{
+								continue;
+							}
+							else if (type == xltypeNum)
 							{
 								xltype = xltypeNum;
 								continue;
 							}
-							else if (type != DUCKDB_TYPE_INTEGER)
+							else if (type != xltypeInt)
 							{
 							    xltype = xltypeStr;
 								break;
@@ -870,22 +885,31 @@ static int infer_types
                     }
 					else if (xltype == xltypeNum)
 					{
-						if (cell_type == xltypeStr)
+						if (cell_type == xltypeInt
+							|| cell_type == xltypeNum
+							|| cell_type == xltypeNil
+							|| cell_type == xltypeMissing
+							|| cell_type == xltypeErr)
 						{
-							duckdb_type type = infer_xlstr(cell->val.str);
+							continue;
+						}
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str);
 							
-							if (type != xltypeInt
-								&& type != xltypeNum)
+							if (type == xltypeInt
+								|| type == xltypeNum
+								|| type == xltypeNil)
+							{
+								continue;
+							}
+							else
 							{
 								xltype = xltypeStr;
 								break;
 							}
 						}
-						if (cell_type != xltypeInt
-							&& cell_type != xltypeNum
-							&& cell_type != xltypeNil
-							&& cell_type != xltypeMissing
-							&& cell_type != xltypeErr)
+						else
 						{
 							xltype = xltypeStr;
 							break;
@@ -893,7 +917,14 @@ static int infer_types
 					}
                     else if (xltype == xltypeBool)
                     {
-                        if (cell_type == xltypeInt)
+                        if (cell_type == xltypeBool
+							|| cell_type == xltypeNil 
+                            || cell_type == xltypeMissing 
+                            || cell_type == xltypeErr)
+                        {
+                            continue;
+                        }
+						else if (cell_type == xltypeInt)
                         {
                             int v = cell->val.w;
                             if ((v == 0) || (v == 1))
@@ -905,14 +936,25 @@ static int infer_types
                             if ((v == 0.0) || (v == 1.0))
                                 continue;
                         }
-                        else if (cell_type == xltypeNil 
-                                 || cell_type == xltypeMissing 
-                                 || cell_type == xltypeErr)
-                        {
-                            continue;
-                        }
-
-                        goto varchar_degrade;
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str);
+							
+							if (type == xltypeBool || type == xltypeNil)
+							{
+								continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
+						}
+						else
+						{
+							xltype = xltypeStr;
+							break;
+						}
                     }
                     else if (cell_type == xltypeNil
                              || cell_type == xltypeMissing
@@ -920,16 +962,11 @@ static int infer_types
                     {
                         continue;
                     }
-                    else if (cell_type != xltype)
+                    else
                     {
-                        goto varchar_degrade;
+						xltype = xltypeStr;
+						break;
                     }
-
-                    continue;
-
-                varchar_degrade:
-                    xltype = xltypeStr;
-                    break;
                 }
             }
         }
@@ -1273,7 +1310,6 @@ static inline int cell_to_integer(
 				break;
             }
 			
-			res = -1;
 			break;
 			
         case xltypeBool:
@@ -1291,36 +1327,60 @@ static inline int cell_to_integer(
 			}
 			
 			char *dest = NULL;
-			char *endptr = NULL;
-			long long num;
-			
 			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-			{
-				res = -1;
 				break;
-			}
 			
-			errno = 0;
 			size_t n;
 			char *trimmed = trim_whitespace(dest, &n);
-			num = strtoll(trimmed, &endptr, 10);
-			if (errno == ERANGE 
-				|| endptr == trimmed
-				|| endptr == trimmed + n
-				|| num < INT32_MIN
-				|| num > INT32_MAX)
+			trimmed[n] = '\0';
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
+			char *endptr = NULL;
+			errno = 0;
+			double d = strtod(trimmed, &endptr);
+			if (errno != ERANGE 
+				&& endptr != trimmed
+				&& *endptr == '\0'
+				&& isfinite(d)
+				&& is_whole_number(d))
 			{
 				free(dest);
-				
-				res = -1;
+				*out = (int32_t)d;
+				res = 1;
 				break;
 			}
 
 			free(dest);
-			
-			*out = (int32_t)num;
-
-			res = 1;
 			break;
 		}
 
@@ -1331,10 +1391,11 @@ static inline int cell_to_integer(
 			break;
 
         default:
-			res = -1;
 			break;
     }
-	
+
+done:
+
 	return res;
 }
 
@@ -1371,36 +1432,61 @@ static inline int cell_to_double(
 				break;
 			}
 			
-			char *dest = NULL;
-			char *endptr = NULL;
-			double num;
-			
+			char *dest = NULL;		
 			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-			{
-				res = -1;
 				break;
-			}
-			
-			errno = 0;
+
 			size_t n;
 			char *trimmed = trim_whitespace(dest, &n);
-			num = strtod(trimmed, &endptr);
-			if (errno == ERANGE 
-				|| endptr == trimmed
-				|| endptr == trimmed + n;
-				|| !isfinite(num))
+			trimmed[n] = '\0';
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
+			char *endptr = NULL;
+			errno = 0;
+			double num = strtod(trimmed, &endptr);
+			if (errno != ERANGE 
+				&& endptr != trimmed
+				&& *endptr == '\0'
+				&& isfinite(num))
 			{
 				free(dest);
-				
-				res = -1;
+
+				res = 1;
+				*out = num;
 				break;
 			}
 
-			*out = num;
-
 			free(dest);
-
-            res = 1;
 			break;
 		}
 
@@ -1414,7 +1500,9 @@ static inline int cell_to_double(
             res = -1;
 			break;
     }
-	
+
+done:
+
 	return res;
 }
 
@@ -1434,14 +1522,44 @@ static inline int cell_to_bool
 			break;
 
         case xltypeInt:
-            *out = (cell->val.w != 0);
-            res = 1;
+		{
+			int val = cell->val.w;
+			if (val == 1)
+			{
+				*out = true;
+				res = 1;
+				break;
+			}
+			else if (val == 0)
+			{
+				*out = false;
+				res = 1;
+				break;
+			}
+
+            res = -1;
 			break;
+		}
 
         case xltypeNum:
-            *out = (fabs(cell->val.num) > EPSILON);
-            res = 1;
+		{
+			double val = cell->val.num;
+			if (val == 1.0)
+			{
+				*out = true;
+				res = 1;
+				break;
+			}
+			else if (val == 0.0)
+			{
+				*out = false;
+				res = 1;
+				break;
+			}
+
+            res = -1;
 			break;
+		}
 
 		case xltypeStr:
 		{
@@ -1465,6 +1583,10 @@ static inline int cell_to_bool
 			
 			switch (n)
 			{
+				case 0:
+					res = 0;
+					break;
+
 				case 1:
 					switch (trimmed[0])
 					{
@@ -1525,7 +1647,12 @@ static inline int cell_to_bool
 						res = 1;
 						break;
 					}
-					
+					else if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						res = 0;
+						break;
+					}
+
 					res = -1;
 					break;
 
@@ -1534,6 +1661,11 @@ static inline int cell_to_bool
 					{
 						*out = true;
 						res = 1;
+						break;
+					}
+					else if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						res = 0;
 						break;
 					}
 					
@@ -1602,6 +1734,40 @@ static inline int cell_to_varchar(
 				break;
 			}
 
+			size_t n;
+			char *trimmed = trim_whitespace(dest, &n);
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
 			DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, dest);
 			free(dest);
 
@@ -1649,7 +1815,9 @@ static inline int cell_to_varchar(
 			res = -1;
 			break;
 	}
-	
+
+done:
+
 	return res;
 }
 
