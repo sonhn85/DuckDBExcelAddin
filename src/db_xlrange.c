@@ -1,3 +1,4 @@
+#include <windows.h>
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
@@ -6,15 +7,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <windows.h>
 #include "XLCALL.H"
 #include "FRAMEWRK.H"
+
+#include "uthash.h"
+
 #include "db_xlrange.h"
 #include "helper.h"
 #include "db_lib_loader.h"
 #include "config.h"
-
-#include "uthash.h"
 
 #define ERR_MSG_XLRANGE_INTERNAL            "An internal error occurred."
 #define ERR_MSG_XLRANGE_INVALID_PARAM       "Invalid parameter."
@@ -22,10 +23,12 @@
 #define ERR_MSG_XLRANGE_DOUBLE              "Failed to convert value to DOUBLE."
 #define ERR_MSG_XLRANGE_INT                 "Failed to convert value to INTEGER."
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
+#define ERR_MSG_XLRANGE_BOOL	             "Failed to convert value to BOOLEAN."
 
-#define GENERATED_COLNAME_SIZE 100
+#define GENERATED_COLNAME_SIZE 				100
+#define SUFFIX_LEN							20
 
-typedef struct colname_hash_t
+typedef struct colname_hash_t	/* hash table to store column name */
 {
     char *name;             	/* key */
     size_t count;           	/* occurrences seen */
@@ -62,9 +65,17 @@ typedef struct xlrange_scan_state_t
 	bool			ignore_errors;
 } xlrange_scan_state_t;
 
-static char *make_unique_name(
-    colname_hash_t **hash,
-    const char *name
+/*
+ * Check for name duplication in hash table
+ * Duplicate names are prefixed: name, name_1, name_2 ...
+ * Return:
+ * 		fixed name: success
+ *      NULL:		error
+ */
+static char *make_unique_name
+(
+    colname_hash_t 	**hash,
+    const char 		*name
 )
 {
     colname_hash_t *entry = NULL;
@@ -102,7 +113,7 @@ static char *make_unique_name(
     size_t len =
         strlen(name)
         + 1                  /* '_' */
-        + 20                 /* suffix */
+        + SUFFIX_LEN
         + 1;                 /* '\0' */
 
     char *new_name = malloc(len);
@@ -122,20 +133,20 @@ static char *make_unique_name(
 
 static void format_error_message
 (
-    char            *buf,
-    size_t          buf_size,
-    const char      *action,
-    const char      *colname,
-    long long       col_idx,
-    long long       row_idx,
-    const char      *msg,
-    bool            has_header
+    char           *buf,
+    size_t         buf_size,
+    const char     *action,
+    const char     *colname,
+    long long	   col_idx,
+    long long      row_idx,
+    const char     *msg,
+    bool           has_header
 )
 {
     if (!buf || buf_size == 0 || !action || !msg)
         return;
 
-    if (colname)
+    if (has_header && colname)
     {
         if (row_idx >= 0)
         {
@@ -145,7 +156,7 @@ static void format_error_message
                 "Error %s: Column %s, row %lld: %s",
                 action,
                 colname,
-                row_idx + (has_header ? 2 : 1), // +1 for 0-based index, +1 for header row 
+                row_idx + 2, // +1 for 0-based index, +1 for header row 
                 msg
             );
         }
@@ -215,13 +226,22 @@ static void free_bind_data(void *p)
 
         free(bind_data->colnames);
     }
+	
     free(bind_data);
 }
 
-#define SET_BIND_ERROR(BUF, MSG) \
+/* Check if a double is actually an int */
+static bool is_whole_number(double num)
+{
+    return (fabs(fmod(num, 1.0)) < EPSILON
+            && num >= INT32_MIN
+            && num <= INT32_MAX);
+}
+
+#define SET_BIND_ERROR(BUF, LEN, MSG) \
     format_error_message( \
         BUF, \
-        ERR_MSG_MAX_LEN, \
+        LEN, \
         "binding xlrange", \
         NULL, \
         -1, \
@@ -230,20 +250,20 @@ static void free_bind_data(void *p)
         false \
     )
 
-static bool is_int(double num)
-{
-    return (fabs(fmod(num, 1.0)) < EPSILON
-            && num >= INT32_MIN
-            && num <= INT32_MAX);
-}
-
 /*
  * Helper to get integer positional parameter
  * Return 1: success
  *        0: missing
  *        -1: error
  */
-static int get_int_param(duckdb_bind_info info, idx_t index, int *result, char *errmsg) \
+static int get_int_param
+(
+	duckdb_bind_info	info,
+	idx_t 				index,
+	int32_t				*result,
+	char 				*errmsg,
+	size_t				err_buf_size
+)
 {
 	int ok = -1;
 	
@@ -251,28 +271,28 @@ static int get_int_param(duckdb_bind_info info, idx_t index, int *result, char *
 
     if (!val)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
         goto cleanup;
     }
 
     if (DUCKDB_IS_NULL_VALUE(val))
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
 		ok = 0;
         goto cleanup;
     }
 
-	duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);
+	duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);  /* owned by val */
 
     if(!lt)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
         goto cleanup;
     }
 
     if(DUCKDB_GET_TYPE_ID(lt) != DUCKDB_TYPE_INTEGER)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
         goto cleanup;
     }
 
@@ -292,183 +312,165 @@ cleanup:
  *        0: missing
  *        -1: error
  */
-#define DEF_FUNC(TYPE, DB_TYPE, GETTER)																	\
-static int get_##TYPE##_named_param(duckdb_bind_info info, const char *name, TYPE *result, char *errmsg) \
-{																										\
-	int ok = 0;																							\
-																										\
-    duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);										\
-																										\
-    if (val)																							\
-    {																									\
-		ok = -1;																						\
-																										\
-        if (DUCKDB_IS_NULL_VALUE(val))																	\
-        {																								\
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);										\
-            goto cleanup;																				\
-        }																								\
-																										\
-		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);											\
-																										\
-        if (!lt)																						\
-        {																								\
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);											\
-            goto cleanup;																				\
-        }																								\
-																										\
-        if (DUCKDB_GET_TYPE_ID(lt) != DB_TYPE)												            \
-        {																								\
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);										\
-            goto cleanup;																				\
-        }																								\
-																										\
-        *result = GETTER(val);																	        \
-		ok = 1;																							\
-																										\
-	cleanup:																							\
-																										\
-		DUCKDB_DESTROY_VALUE(&val);																		\
-    }																									\
-																										\
-	return ok;																							\
+#define DEFINE_GENERATE_NAMED_PARAM_FUNC(TYPE, TYPE_ENUM, GETTER)					\
+static int get_##TYPE##_named_param													\
+(																					\
+	duckdb_bind_info	info,														\
+	const char 			*name,														\
+	TYPE 				*result,													\
+	char 				*errmsg,													\
+	size_t				err_buf_size												\
+)																					\
+{																					\
+	int ok = 0;																		\
+																					\
+    duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);					\
+																					\
+    if (val)																		\
+    {																				\
+		ok = -1;																	\
+																					\
+        if (DUCKDB_IS_NULL_VALUE(val))												\
+        {																			\
+            SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM); 	\
+            goto cleanup;															\
+        }																			\
+																					\
+		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);						\
+																					\
+        if (!lt)																	\
+        {																			\
+            SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL); 		\
+            goto cleanup;															\
+        }																			\
+																					\
+        if (DUCKDB_GET_TYPE_ID(lt) != TYPE_ENUM)									\
+        {																			\
+            SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);	\
+            goto cleanup;															\
+        }																			\
+																					\
+        *result = GETTER(val);														\
+		ok = 1;																		\
+																					\
+	cleanup:																		\
+																					\
+		DUCKDB_DESTROY_VALUE(&val);													\
+    }																				\
+																					\
+	return ok;																		\
 }
 
-DEF_FUNC(int, DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
-DEF_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
+/* Generate get_int_named_param and get_bool_named_param functions */
+DEFINE_GENERATE_NAMED_PARAM_FUNC(int,  DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
+DEFINE_GENERATE_NAMED_PARAM_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
 
-static void xlrange_bind(duckdb_bind_info info)
+/* Parse parameters from xlrange() call */
+static int parse_params
+(
+	duckdb_bind_info 	info,
+	xlrange_context_t	*ctx,
+	int32_t             *range_idx,
+	size_t              *nsample,
+	bool				*all_varchar,
+	bool				*has_header,
+	bool				*is_strict,
+	bool				*ignore_errors,
+	char				*errmsg,
+	size_t				err_buf_size
+)
 {
-    xlrange_bind_data_t     *bind_data = NULL;
-
-    duckdb_type             *types = NULL;
-    char                    **colnames = NULL;
-
-    int32_t                 range_idx = 0;
-    size_t                  nsample = 0;
-    size_t                  ndatarows = 0;
-    size_t                  nrows = 0;
-    size_t                  ncols = 0;
-
-    char errmsg[ERR_MSG_MAX_LEN];
-    errmsg[0] = '\0';
-
-    xlrange_context_t *ctx = DUCKDB_BIND_GET_EXTRA_INFO(info);
-
-    if (!ctx)
-    {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-        goto fail;
-    }
-
     /* xlrange(index) -> one required positional parameter */
+	int32_t range_idx_tmp;
+	
     if (DUCKDB_BIND_GET_PARAMETER_COUNT(info) != 1)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
         goto fail;
     }
 
-	if (get_int_param(info, 0, &range_idx, errmsg) != 1)
-		goto fail;
+    if (get_int_param(info, 0, &range_idx_tmp, errmsg, err_buf_size) != 1)
+        goto fail;
 
-    if (range_idx <= 0 || (size_t)range_idx > ctx->nrange)
+    if (range_idx_tmp <= 0 || (size_t)range_idx_tmp > ctx->nrange)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
         goto fail;
     }
 
     /* xlrange(..., header = true) */
-    bool has_header = true; // Default
-	
-	if (get_bool_named_param(info, "header", &has_header, errmsg) == -1)
-		goto fail;
-
+    bool has_header_tmp = true;
     /* xlrange(..., strict = true) */
-    bool is_strict = true; // Default
-	
-	if (get_bool_named_param(info, "strict", &is_strict, errmsg) == -1)
-		goto fail;
-
-    /* xlrange(..., all_varchar = true) */
-    bool all_varchar = false; // Default
-	
-	if (get_bool_named_param(info, "all_varchar", &all_varchar, errmsg) == -1)
-		goto fail;
-
+    bool is_strict_tmp = true;
+    /* xlrange(..., all_varchar = false) */
+    bool all_varchar_tmp = false;
     /* xlrange(..., ignore_errors = false) */
-    bool ignore_errors = false; // Default
-	
-	if (get_bool_named_param(info, "ignore_errors", &ignore_errors, errmsg) == -1)
-		goto fail;
+    bool ignore_errors_tmp = false;
 
-    /* xlrange(..., sample = n) */
-    int32_t sample_count = XLRANGE_DEFAULT_SAMPLE_COUNT; // Default
-
-    if (!all_varchar)
+	if (get_bool_named_param(info, "header", &has_header_tmp, errmsg, err_buf_size) == -1
+		|| get_bool_named_param(info, "strict", &is_strict_tmp, errmsg, err_buf_size) == -1
+		|| get_bool_named_param(info, "all_varchar", &all_varchar_tmp, errmsg, err_buf_size) == -1
+		|| get_bool_named_param(info, "ignore_errors", &ignore_errors_tmp, errmsg, err_buf_size) == -1)
     {
-		if (get_int_named_param(info, "sample", &sample_count, errmsg) == -1)
+        goto fail;
+    }
+
+    /* xlrange(..., sample = XLRANGE_DEFAULT_SAMPLE_COUNT) */
+    int32_t nsample_tmp = XLRANGE_DEFAULT_SAMPLE_COUNT;
+    if (!all_varchar_tmp)
+    {
+		if (get_int_named_param(info, "sample", &nsample_tmp, errmsg, err_buf_size) == -1)
+		{
 			goto fail;
-
-        if (sample_count < 0)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INVALID_PARAM);
-            goto fail;
-        }
+		}
+		
+		if (nsample_tmp < 0)
+		{
+			SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
+			goto fail;
+		}
     }
 
-    nsample = sample_count;
+	*range_idx		= range_idx_tmp;
+    *nsample 		= (size_t)nsample_tmp;
+	*has_header 	= has_header_tmp;
+	*is_strict 		= is_strict_tmp;
+	*all_varchar 	= all_varchar_tmp;
+	*ignore_errors	= ignore_errors_tmp;
+	
+	return 1;
 
-    LPXLOPER12 range = &ctx->ranges[range_idx - 1];
+fail:
 
-    if (LPXLOPER12_TYPE(range) != xltypeMulti)
-    {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-        goto fail;
-    }
+	return 0;
+}
 
-    ncols = (size_t)range->val.array.columns;
-    nrows = (size_t)range->val.array.rows;
-    ndatarows = has_header
-        ? ((nrows > 0) ? nrows - 1 : 0)
-        : nrows;
-
-    if (nsample == 0 || nsample > ndatarows)
-        nsample = ndatarows;
-
-    LPXLOPER12 p = range->val.array.lparray;
-
-    if (!p || ncols == 0 || nrows == 0)
-    {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-        goto fail;
-    }
-
-    types = malloc(ncols*sizeof(*types));
-    colnames = calloc(ncols, sizeof(*colnames));
-
-    if (!types || !colnames)
-    {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-        goto fail;
-    }
-
-    /* Infer DuckDB types and bind result columns */
-    size_t unnamed_idx = 0;
+static int get_column_names
+(
+	LPXLOPER12	cell,
+	char		**colnames,
+	size_t		ncols,
+	bool		has_header,
+	bool		is_strict,
+	char		*errmsg,
+	size_t		err_buf_size
+)
+{
+    int ok = 0;
+	size_t unnamed_idx = 0;
 	colname_hash_t *hash = NULL;
-    for (size_t i=0; i < ncols; i++, p++)
+	XLOPER12 str_cell;
+
+    for (size_t i=0; i < ncols; i++, cell++)
     {
         char *colname = NULL;
-        duckdb_logical_type lt_col = NULL;
+		str_cell.xltype = xltypeNil;
 
         if (!has_header)
         {
             colname = malloc(GENERATED_COLNAME_SIZE);
-
             if (!colname)
-            {
-                SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-                goto bind_column_failure;
-            }
+                goto internal_error;
 
             snprintf(
                 colname,
@@ -479,31 +481,21 @@ static void xlrange_bind(duckdb_bind_info info)
         }
 		else
 		{
-			XLOPER12 str_xloper12;
-			str_xloper12.xltype = xltypeNil;
 			wchar_t *xlstr = NULL;
-			if (LPXLOPER12_TYPE(p) == xltypeStr)
+			
+			if (LPXLOPER12_TYPE(cell) == xltypeStr)
 			{
-				xlstr = p->val.str;
+				xlstr = cell->val.str;
 			}
 			else
 			{
-				if (Excel12f(xlCoerce, &str_xloper12, 2, p, TempInt12(xltypeStr)) != xlretSuccess
-					|| XLOPER12_TYPE(str_xloper12) != xltypeStr)
+				if (Excel12f(xlCoerce, &str_cell, 2, cell, TempInt12(xltypeStr)) != xlretSuccess
+					|| XLOPER12_TYPE(str_cell) != xltypeStr)
 				{
-					format_error_message(
-						errmsg,
-						sizeof(errmsg),
-						"binding xlrange",
-						NULL,
-						(long long)i,
-						-1,
-						ERR_MSG_XLRANGE_INVALID_COL_NAME,
-						has_header
-					);
-					goto free_str_xloper12;
+					goto name_error;
 				}
-				xlstr = str_xloper12.val.str;
+				
+				xlstr = str_cell.val.str;
 			}
 			
 			if (is_strict)
@@ -512,17 +504,7 @@ static void xlrange_bind(duckdb_bind_info info)
 					|| (xlstr_to_utf8(&colname, xlstr, NULL) == 0)
 					|| !colname)
 				{
-					format_error_message(
-						errmsg,
-						sizeof(errmsg),
-						"binding xlrange",
-						NULL,
-						(long long)i,
-						-1,
-						ERR_MSG_XLRANGE_INVALID_COL_NAME,
-						has_header
-					);
-					goto free_str_xloper12;
+					goto name_error;
 				}
 			}
 			else /* not strict */
@@ -530,12 +512,8 @@ static void xlrange_bind(duckdb_bind_info info)
 				if (is_null_or_whitespace_xlstr(xlstr))
 				{
 					colname = malloc(GENERATED_COLNAME_SIZE);
-
 					if (!colname)
-					{
-						SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-						goto free_str_xloper12;
-					}
+						goto internal_error;
 
 					snprintf(
 						colname,
@@ -549,17 +527,7 @@ static void xlrange_bind(duckdb_bind_info info)
 				else if (xlstr_to_utf8(&colname, xlstr, NULL) == 0
 						 || !colname)
 				{
-					format_error_message(
-						errmsg,
-						sizeof(errmsg),
-						"binding xlrange",
-						NULL,
-						(long long)i,
-						-1,
-						ERR_MSG_XLRANGE_INVALID_COL_NAME,
-						has_header
-					);
-					goto free_str_xloper12;
+					goto name_error;
 				}
 
 				/* Fix duplicates */
@@ -567,42 +535,273 @@ static void xlrange_bind(duckdb_bind_info info)
 				colname = make_unique_name(&hash, name);
 				free(name);
 				if (!colname)
-				{
-					SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-					goto free_str_xloper12;
-				}
+					goto internal_error;
 			}
-
-		free_str_xloper12:
-
-			if (XLOPER12_TYPE(str_xloper12) != xltypeNil)
-				Excel12f(xlFree, NULL, 1, &str_xloper12);
-
-			if(!colname)
-				goto bind_column_failure;
 		}
 
-        /*
-        * Type inference strategy:
-        *
-        * 1. Scan for the first non-empty value and use its type as the
-        *    candidate column type.
-        *
-        * 2. Sample remaining rows.
-        *
-        * 3. If incompatible types are encountered, fall back to VARCHAR.
-        *
-        * 4. Integer-valued numeric cells are inferred as INTEGER when
-        *    all sampled numeric values fit within INT32.
-        */
+		colnames[i] = colname;
+		colname = NULL;
+
+		continue;
+
+	internal_error:
+
+        SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
+		
+		goto cleanup;
+
+	name_error:
+
+		format_error_message(
+			errmsg,
+			err_buf_size,
+			"binding xlrange",
+			NULL,
+			(long long)i,
+			-1,
+			ERR_MSG_XLRANGE_INVALID_COL_NAME,
+			has_header
+		);
+		
+		goto cleanup;
+		
+	cleanup:
+
+		if (XLOPER12_TYPE(str_cell) != xltypeNil)
+		{
+			Excel12f(xlFree, NULL, 1, &str_cell);
+			str_cell.xltype = xltypeNil;
+		}
+
+		for (size_t j = 0; j < i; j++)
+		{
+			free(colnames[j]);
+			colnames[j] = NULL;
+		}
+		
+		goto free_hash;
+	}
+	
+	ok = 1;
+
+free_hash:
+
+	colname_hash_t *hash_entry, *hash_tmp;
+	
+	HASH_ITER(hh, hash, hash_entry, hash_tmp)
+	{
+		HASH_DEL(hash, hash_entry);
+		free(hash_entry->name);
+		free(hash_entry);
+	}
+	hash = NULL;
+
+	return ok;
+}
+
+/*
+ * Trim leading and trailing whitespace from a string.
+ * - Returns a pointer to the first non-space character in the original buffer.
+ * - Sets *out_len to the length of the trimmed substring (excluding the null terminator).
+ * - If the string contains only spaces, returns a pointer to the terminating '\0' and sets *out_len = 0.
+ * - Note: The original string buffer is not reallocated or freed by this function.
+ * - Caller is responsible for freeing the original buffer if it was dynamically allocated.
+ * - Important: This function does not insert or modify characters; it only adjusts the returned pointer
+ *   and length to represent the trimmed view of the string.
+ */
+static inline char *trim_whitespace(char *s, size_t *out_len)
+{
+    while (*s && isspace((unsigned char)*s)) {
+        s++;
+    }
+
+    if (*s == '\0')
+	{
+        if (out_len) *out_len = 0;
+        return s;
+    }
+
+    char *end = s + strlen(s) - 1;
+    while (end > s && isspace((unsigned char)*end)) {
+        end--;
+    }
+
+    if (out_len)
+        *out_len = (size_t)(end - s + 1);
+
+    return s;
+}
+
+/*
+ * Infer DuckDB type from a string cell value.
+ * - Trims whitespace and checks if the string represents:
+ *   • INTEGER: whole number within INT32 range
+ *   • DOUBLE: parsed fully by strtod, finite, promoted to INTEGER if whole number
+ *   • BOOLEAN: matches common forms ("Y/N", "y/n" "T/F", "t/f", "YES/NO" "yes/no", "ON/OFF", "on/off", "TRUE/FALSE", "true/false")
+ *   • NULL: "NULL", "N/A", "null", "n/a"
+ * - Falls back to VARCHAR if no match.
+ * Return: DUCKDB_TYPE_INTEGER, DUCKDB_TYPE_DOUBLE, DUCKDB_TYPE_BOOLEAN, or DUCKDB_TYPE_VARCHAR.
+ */
+static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
+{
+	char *s = NULL;
+	if (!xlstr
+		|| xlstr_to_utf8(&s, xlstr, NULL) == 0
+		|| !s)
+	{
+		return xltypeStr;
+	}
+	
+	WORD type;
+	
+	size_t n;
+	char *trimmed = trim_whitespace(s, &n);
+
+	if (n == 0)
+	{
+		type = xltypeNil;
+		goto cleanup;
+	}
+
+	char *endptr = NULL;
+	errno = 0;
+	double d = strtod(trimmed, &endptr);
+	if (errno != ERANGE 
+		&& endptr != trimmed
+		&& endptr == trimmed + n
+		&& isfinite(d))
+	{
+		if (is_whole_number(d))
+		{
+			type = xltypeInt;
+			goto cleanup;
+		}
+		else
+		{
+			type = xltypeNum;
+			goto cleanup;
+		}
+	}
+
+	switch (n)
+	{
+		case 1:
+			switch (trimmed[0])
+			{
+				case 'Y':
+				case 'y':
+				case 'T':
+				case 't':
+				case 'N':
+				case 'n':
+				case 'F':
+				case 'f':
+				{
+					type = xltypeBool;
+					goto cleanup;
+				}
+
+				default:
+					break;
+			}
+			
+			break;
+
+		case 2:
+			if (strncasecmp(trimmed, "no", n) == 0
+				|| strncasecmp(trimmed, "on", n) == 0)
+			{
+				type = xltypeBool;
+				goto cleanup;
+			}
+
+			break;
+
+		case 3:
+			if (strncasecmp(trimmed, "yes", n) == 0
+				|| strncasecmp(trimmed, "off", n) == 0)
+			{
+				type = xltypeBool;
+				goto cleanup;
+			}
+			else if (strncasecmp(trimmed, "n/a", n) == 0)
+			{
+				type = xltypeNil;
+				goto cleanup;
+			}
+
+			break;
+
+		case 4:
+			if (strncasecmp(trimmed, "true", n) == 0)
+			{
+				type = xltypeBool;
+				goto cleanup;
+			}
+			else if (strncasecmp(trimmed, "null", n) == 0)
+			{
+				type = xltypeNil;
+				goto cleanup;
+			}
+
+			break;
+
+		case 5:
+			if (strncasecmp(trimmed, "false", n) == 0)
+			{
+				type = xltypeBool;
+				goto cleanup;
+			}
+
+			break;
+
+		default:
+			break;
+	}
+
+	type = xltypeStr;
+
+cleanup:
+
+	free(s);
+
+	return type;
+}
+
+/*
+ * Inference strategy:
+*  1. Scan for the first non-null value in the column and
+*     use its type as the candidate type. Empty strings,
+*     "N/A", and "NULL" are treated as nulls.
+ * 2. Whole-number numeric cells are inferred as INTEGER
+ *    when all sampled values fit within the INT32 range.
+ * 3. Sample the remaining rows up to the configured sample limit.
+ * 4. If incompatible types are encountered, promote the 
+ *    column type to DOUBLE or VARCHAR.
+ */
+static int infer_types
+(
+	LPXLOPER12			data,
+	size_t				ncols,
+	size_t     			nsample,
+	size_t				ndatarows,
+	bool				all_varchar,
+	bool				has_header,
+	duckdb_type			*types,
+	duckdb_logical_type *logical_types,
+	char				*errmsg,
+	size_t				err_buf_size
+)
+{
+    for (size_t i=0; i < ncols; i++, data++)
+    {
         WORD xltype = xltypeStr;
 
         if (!all_varchar && ndatarows > 0)
         {
-            /* First data cell */
-            LPXLOPER12 cell = has_header ? p + ncols : p;
+            LPXLOPER12 cell = has_header ? data + ncols : data;
 
-            /* Sample first non-empty value */
+            /* Sample first non-null value */
             size_t sample_idx;
 
             for (sample_idx = 0; sample_idx < nsample; sample_idx++, cell += ncols)
@@ -616,15 +815,22 @@ static void xlrange_bind(duckdb_bind_info info)
                 }
                 else if (cell_type == xltypeNum)
                 {
-                    /* Check if double is actually int */
-                    xltype = is_int(cell->val.num) ? xltypeInt : xltypeNum;
+					xltype = is_whole_number(cell->val.num) ? xltypeInt : xltypeNum;
                     break;
                 }
-                else if (cell_type == xltypeStr
-                         || cell_type == xltypeBool)
-                {
-                    xltype = cell_type;
+				else if (cell_type == xltypeBool)
+				{
+                    xltype = xltypeBool;
                     break;
+				}
+                else if (cell_type == xltypeStr)
+                {
+					WORD type = get_xlstr_represented_type(cell->val.str);
+					if (type == xltypeNil)
+						continue;
+
+					xltype = type;
+					break;
                 }
             }
 
@@ -640,26 +846,85 @@ static void xlrange_bind(duckdb_bind_info info)
 
                     if (xltype == xltypeInt)
                     {
+						if (cell_type == xltypeInt
+							|| cell_type == xltypeNil
+							|| cell_type == xltypeMissing
+							|| cell_type == xltypeErr)
+						{
+							continue;
+						}
                         if (cell_type == xltypeNum)
                         {
-                            if (!is_int(cell->val.num))
+                            if (!is_whole_number(cell->val.num))
                                 xltype = xltypeNum;
-
-                            continue;
                         }
-                        else if (cell_type == xltypeInt 
-                                 || cell_type == xltypeNil 
-                                 || cell_type == xltypeMissing 
-                                 || cell_type == xltypeErr)
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str);
+							
+							if (type == xltypeNil)
+							{
+								continue;
+							}
+							else if (type == xltypeNum)
+							{
+								xltype = xltypeNum;
+								continue;
+							}
+							else if (type != xltypeInt)
+							{
+							    xltype = xltypeStr;
+								break;
+							}
+						}
+						else
+						{
+							xltype = xltypeStr;
+							break;
+						}
+                    }
+					else if (xltype == xltypeNum)
+					{
+						if (cell_type == xltypeInt
+							|| cell_type == xltypeNum
+							|| cell_type == xltypeNil
+							|| cell_type == xltypeMissing
+							|| cell_type == xltypeErr)
+						{
+							continue;
+						}
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str);
+							
+							if (type == xltypeInt
+								|| type == xltypeNum
+								|| type == xltypeNil)
+							{
+								continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
+						}
+						else
+						{
+							xltype = xltypeStr;
+							break;
+						}
+					}
+                    else if (xltype == xltypeBool)
+                    {
+                        if (cell_type == xltypeBool
+							|| cell_type == xltypeNil 
+                            || cell_type == xltypeMissing 
+                            || cell_type == xltypeErr)
                         {
                             continue;
                         }
-
-                        goto varchar_degrade;
-                    }
-                    else if (xltype == xltypeBool)
-                    {
-                        if (cell_type == xltypeInt)
+						else if (cell_type == xltypeInt)
                         {
                             int v = cell->val.w;
                             if ((v == 0) || (v == 1))
@@ -671,14 +936,25 @@ static void xlrange_bind(duckdb_bind_info info)
                             if ((v == 0.0) || (v == 1.0))
                                 continue;
                         }
-                        else if (cell_type == xltypeNil 
-                                 || cell_type == xltypeMissing 
-                                 || cell_type == xltypeErr)
-                        {
-                            continue;
-                        }
-
-                        goto varchar_degrade;
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str);
+							
+							if (type == xltypeBool || type == xltypeNil)
+							{
+								continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
+						}
+						else
+						{
+							xltype = xltypeStr;
+							break;
+						}
                     }
                     else if (cell_type == xltypeNil
                              || cell_type == xltypeMissing
@@ -686,16 +962,11 @@ static void xlrange_bind(duckdb_bind_info info)
                     {
                         continue;
                     }
-                    else if (cell_type != xltype)
+                    else
                     {
-                        goto varchar_degrade;
+						xltype = xltypeStr;
+						break;
                     }
-
-                    continue;
-
-                varchar_degrade:
-                    xltype = xltypeStr;
-                    break;
                 }
             }
         }
@@ -723,63 +994,155 @@ static void xlrange_bind(duckdb_bind_info info)
                 break;
         }
 
-        lt_col = DUCKDB_CREATE_LOGICAL_TYPE(type);
-
-        if (!lt_col)
-        {
-            SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
-            goto bind_column_failure;
-        }
-
-        types[i] = type;
-        colnames[i] = colname;
-
-        DUCKDB_BIND_ADD_RESULT_COLUMN(info, colname, lt_col);
-        colname = NULL;
-
-        DUCKDB_DESTROY_LOGICAL_TYPE(&lt_col);
-
-        continue;
-
-    bind_column_failure:
-
-		colname_hash_t *hash_entry, *hash_tmp;
-		
-		HASH_ITER(hh, hash, hash_entry, hash_tmp)
+		duckdb_logical_type lt = DUCKDB_CREATE_LOGICAL_TYPE(type);
+		if (!lt)
 		{
-			HASH_DEL(hash, hash_entry);
-			free(hash_entry->name);
-			free(hash_entry);
+			SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
+			goto fail;
 		}
-		hash = NULL;
 
-        free(colname);
-    
-        if (lt_col)
-            DUCKDB_DESTROY_LOGICAL_TYPE(&lt_col);
+		types[i] = type;
+        logical_types[i] = lt;
+		
+		continue;
+	
+	fail:
+	
+		for (size_t j = 0; j < i; j++)
+		{
+			DUCKDB_DESTROY_LOGICAL_TYPE(&logical_types[j]);
+			logical_types[j] = NULL;
+		}
+		
+		return 0;
+	}
+	
+	return 1;
+}
 
+static void xlrange_bind(duckdb_bind_info info)
+{
+    xlrange_bind_data_t	*bind_data = NULL;
+    duckdb_logical_type *logical_types = NULL;
+    duckdb_type 		*types = NULL;
+    char                **colnames = NULL;
+    int32_t             range_idx = 0;
+    size_t              nsample = 0;
+    size_t              ndatarows = 0;
+    size_t              nrows = 0;
+    size_t              ncols = 0;
+	bool				all_varchar;
+	bool				has_header;
+	bool				is_strict;
+	bool				ignore_errors;
+
+    char errmsg[ERR_MSG_MAX_LEN];
+    errmsg[0] = '\0';
+
+    xlrange_context_t *ctx = DUCKDB_BIND_GET_EXTRA_INFO(info);
+
+    if (!ctx)
+    {
+        SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
         goto fail;
     }
 
-    bind_data = malloc(sizeof(*bind_data));
+	if (parse_params(
+		info,
+		ctx,
+		&range_idx,
+		&nsample,
+		&all_varchar,
+		&has_header,
+		&is_strict,
+		&ignore_errors,
+		errmsg,
+		sizeof(errmsg)
+	) == 0)
+	{
+		goto fail;
+	}
 
+    LPXLOPER12 range = &ctx->ranges[range_idx - 1];
+    if (LPXLOPER12_TYPE(range) != xltypeMulti)
+    {
+        SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+        goto fail;
+    }
+
+    LPXLOPER12 p = range->val.array.lparray;
+    ncols = (size_t)range->val.array.columns;
+    nrows = (size_t)range->val.array.rows;
+    if (!p || ncols == 0 || nrows == 0)
+    {
+        SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+        goto fail;
+    }
+
+    ndatarows = has_header
+        ? ((nrows > 0) ? nrows - 1 : 0)
+        : nrows;
+
+    if (nsample == 0 || nsample > ndatarows)
+        nsample = ndatarows;
+
+    colnames = malloc(ncols*sizeof(*colnames));
+    types = malloc(ncols*sizeof(*types));
+    logical_types = malloc(ncols*sizeof(*logical_types));
+    if (!types || !logical_types || !colnames)
+    {
+        SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+        goto fail;
+    }
+
+	if (get_column_names(
+		p,
+		colnames,
+		ncols,
+		has_header,
+		is_strict,
+		errmsg,
+		sizeof(errmsg)
+	) == 0)
+	{
+		goto fail;
+	}
+
+	if (infer_types(
+		p,
+		ncols,
+		nsample,
+		ndatarows,
+		all_varchar,
+		has_header,
+		types,
+		logical_types,
+		errmsg,
+		sizeof(errmsg)
+	) == 0)
+	{
+		goto fail;
+	}
+
+    bind_data = malloc(sizeof(*bind_data));
     if (!bind_data)
     {
-        SET_BIND_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
         goto fail;
     }
 
     bind_data->has_header = has_header;
-    bind_data->lparray = has_header
-        ? p
-        : range->val.array.lparray;
-    bind_data->ncols = (size_t)ncols;
+    bind_data->lparray = has_header ? (p + ncols) : p;
+    bind_data->ncols = ncols;
     bind_data->nrows = ndatarows;
     bind_data->types = types;
     types = NULL;
     bind_data->colnames = colnames;
     colnames = NULL;
 	bind_data->ignore_errors = ignore_errors;
+
+	for (size_t i = 0; i < ncols; i++)
+		DUCKDB_BIND_ADD_RESULT_COLUMN(info, bind_data->colnames[i], logical_types[i]);
 
     DUCKDB_BIND_SET_BIND_DATA(info, bind_data, free_bind_data);
     bind_data = NULL;
@@ -795,21 +1158,12 @@ fail:
         errmsg[0] ? errmsg : ERR_MSG_XLRANGE_INTERNAL
     );
 
-    free_bind_data(bind_data);
-
-    free(types);
-
-    if (colnames)
-    {
-        for (size_t i = 0; i < ncols; i++)
-            free(colnames[i]);
-
-        free(colnames);
-    }
-
 cleanup:
 
-    return;
+    free_bind_data(bind_data);
+    free(colnames);
+    free(types);
+    free(logical_types);
 }
 
 static void free_scan_state(void *p)
@@ -832,10 +1186,10 @@ static void free_scan_state(void *p)
     free(state);
 }
 
-#define SET_INIT_ERROR(BUF, MSG) \
+#define SET_INIT_ERROR(BUF, LEN, MSG) \
     format_error_message( \
         BUF, \
-        ERR_MSG_MAX_LEN, \
+        LEN, \
         "initializing xlrange", \
         NULL, \
         -1, \
@@ -855,15 +1209,13 @@ static void xlrange_init(duckdb_init_info info)
     errmsg[0] = '\0';
 
     xlrange_bind_data_t *bind_data = DUCKDB_INIT_GET_BIND_DATA(info);
-
     if (!bind_data)
     {
-        SET_INIT_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_INIT_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
         goto fail;
     }
 
     bool has_header = bind_data->has_header;
-
     ncols = bind_data->ncols;
 
     state = calloc(1, sizeof(*state));
@@ -872,7 +1224,7 @@ static void xlrange_init(duckdb_init_info info)
 
     if (!state || !types || !colnames)
     {
-        SET_INIT_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_INIT_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
         goto fail;
     }
 
@@ -881,24 +1233,12 @@ static void xlrange_init(duckdb_init_info info)
     // Copy column names
     for (size_t i = 0; i < ncols; i++)
     {
-        char *src = bind_data->colnames[i];
-
-        char *copy = NULL;
-
-        if (!src || !(copy = _strdup(src)))
-        {
-            format_error_message(
-                errmsg,
-                sizeof(errmsg),
-                "initializing xlrange",
-                NULL,
-                (long long)i,
-                -1,
-                ERR_MSG_XLRANGE_INTERNAL,
-                has_header
-            );
-            goto fail;
-        }
+		char *copy = _strdup(bind_data->colnames[i]);
+		if (!copy)
+		{		
+			SET_INIT_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+			goto fail;
+		}
 
         colnames[i] = copy;
     }
@@ -918,10 +1258,16 @@ static void xlrange_init(duckdb_init_info info)
     DUCKDB_INIT_SET_INIT_DATA(info, state, free_scan_state);
     state = NULL;
 
-    return;
+	goto cleanup;
 
 fail:
-    free(types);
+
+    DUCKDB_INIT_SET_ERROR(
+        info,
+        errmsg[0] ? errmsg : ERR_MSG_XLRANGE_INTERNAL
+    );
+
+cleanup:
 
     if (colnames)
     {
@@ -931,20 +1277,554 @@ fail:
         free(colnames);
     }
 
+    free(types);
     free_scan_state(state);
-
-    DUCKDB_INIT_SET_ERROR(
-        info,
-        errmsg[0] ? errmsg : ERR_MSG_XLRANGE_INTERNAL
-    );
-
-    return;
 }
 
-#define SET_SCANNING_ERROR(BUF, MSG) \
+/* 
+ * Conversion helpers for Excel LPXLOPER12 cells.
+ * Provide safe parsing into int32_t, double, bool, or DuckDB varchar.
+ * Return codes: 1 = valid conversion, 0 = empty/missing, -1 = incompatible/error.
+ * String inputs are converted to UTF‑8, trimmed, and parsed appropriately.
+ */
+
+static inline int cell_to_integer(
+    LPXLOPER12 	cell,
+	int32_t	 	*out
+)
+{
+	int res = -1;
+	
+    switch (LPXLOPER12_TYPE(cell))
+	{
+        case xltypeInt:
+			*out = (int32_t)cell->val.w;
+			res = 1;
+			break;
+
+        case xltypeNum:
+            if (is_whole_number(cell->val.num))
+			{
+                *out = (int32_t)cell->val.num;
+				res = 1;
+				break;
+            }
+			
+			break;
+			
+        case xltypeBool:
+			*out = cell->val.xbool ? 1 : 0;
+			res = 1;
+			break;
+
+		case xltypeStr:
+		{
+			wchar_t *src = cell->val.str;
+			if (!src)
+			{
+				res = 0;
+				break;
+			}
+			
+			char *dest = NULL;
+			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
+				break;
+			
+			size_t n;
+			char *trimmed = trim_whitespace(dest, &n);
+			trimmed[n] = '\0';
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
+			char *endptr = NULL;
+			errno = 0;
+			double d = strtod(trimmed, &endptr);
+			if (errno != ERANGE 
+				&& endptr != trimmed
+				&& *endptr == '\0'
+				&& isfinite(d)
+				&& is_whole_number(d))
+			{
+				free(dest);
+				*out = (int32_t)d;
+				res = 1;
+				break;
+			}
+
+			free(dest);
+			break;
+		}
+
+		case xltypeNil:
+		case xltypeMissing:
+		case xltypeErr:
+			res = 0;
+			break;
+
+        default:
+			break;
+    }
+
+done:
+
+	return res;
+}
+
+static inline int cell_to_double(
+    LPXLOPER12 	cell,
+	double	 	*out
+)
+{
+	int res = -1;
+
+    switch (LPXLOPER12_TYPE(cell))
+	{
+        case xltypeNum:
+            *out = cell->val.num;
+            res = 1;
+			break;
+
+        case xltypeInt:
+            *out = (double)cell->val.w;
+            res = 1;
+			break;
+
+        case xltypeBool:
+			*out = cell->val.xbool ? 1.0 : 0.0;
+            res = 1;
+			break;
+
+		case xltypeStr:
+		{
+			wchar_t *src = cell->val.str;
+			if (!src)
+			{
+				res = 0;
+				break;
+			}
+			
+			char *dest = NULL;		
+			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
+				break;
+
+			size_t n;
+			char *trimmed = trim_whitespace(dest, &n);
+			trimmed[n] = '\0';
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
+			char *endptr = NULL;
+			errno = 0;
+			double num = strtod(trimmed, &endptr);
+			if (errno != ERANGE 
+				&& endptr != trimmed
+				&& *endptr == '\0'
+				&& isfinite(num))
+			{
+				free(dest);
+
+				res = 1;
+				*out = num;
+				break;
+			}
+
+			free(dest);
+			break;
+		}
+
+		case xltypeNil:
+		case xltypeMissing:
+		case xltypeErr:
+            res = 0;
+			break;
+
+        default:
+            res = -1;
+			break;
+    }
+
+done:
+
+	return res;
+}
+
+static inline int cell_to_bool
+(
+    LPXLOPER12 	cell,
+	bool	 	*out
+)
+{
+	int res = -1;
+	
+    switch (LPXLOPER12_TYPE(cell))
+	{
+        case xltypeBool:
+            *out = cell->val.xbool;
+            res = 1;
+			break;
+
+        case xltypeInt:
+		{
+			int val = cell->val.w;
+			if (val == 1)
+			{
+				*out = true;
+				res = 1;
+				break;
+			}
+			else if (val == 0)
+			{
+				*out = false;
+				res = 1;
+				break;
+			}
+
+            res = -1;
+			break;
+		}
+
+        case xltypeNum:
+		{
+			double val = cell->val.num;
+			if (val == 1.0)
+			{
+				*out = true;
+				res = 1;
+				break;
+			}
+			else if (val == 0.0)
+			{
+				*out = false;
+				res = 1;
+				break;
+			}
+
+            res = -1;
+			break;
+		}
+
+		case xltypeStr:
+		{
+			wchar_t *src = cell->val.str;
+			char *dest = NULL;
+				
+			if (!src)
+			{
+				res = 0;
+				break;
+			}
+	
+			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
+			{
+				res = -1;
+				break;
+			}
+
+			size_t n;
+			char *trimmed = trim_whitespace(dest, &n);
+			
+			switch (n)
+			{
+				case 0:
+					res = 0;
+					break;
+
+				case 1:
+					switch (trimmed[0])
+					{
+						case '1':
+						case 'Y':
+						case 'y':
+						case 'T':
+						case 't':
+							*out = true;
+							res = 1;
+							break;
+
+						case '0':
+						case 'N':
+						case 'n':
+						case 'F':
+						case 'f':
+							*out = false;
+							res = 1;
+							break;
+
+						
+						default:
+							res = -1;
+							break;
+					}
+					
+					break;
+
+				case 2:
+					if (strncasecmp(trimmed, "no", n) == 0)
+					{
+						*out = false;
+						res = 1;
+						break;
+					}
+					else if (strncasecmp(trimmed, "on", n) == 0)
+					{
+						*out = true;
+						res = 1;
+						break;
+					}
+					
+					res = -1;
+					break;
+
+
+				case 3:
+					if (strncasecmp(trimmed, "yes", n) == 0)
+					{
+						*out = true;
+						res = 1;
+						break;
+					}
+					else if (strncasecmp(trimmed, "off", n) == 0)
+					{
+						*out = false;
+						res = 1;
+						break;
+					}
+					else if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						res = 0;
+						break;
+					}
+
+					res = -1;
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "true", n) == 0)
+					{
+						*out = true;
+						res = 1;
+						break;
+					}
+					else if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						res = 0;
+						break;
+					}
+					
+					res = -1;
+					break;
+
+				case 5:
+					if (strncasecmp(trimmed, "false", n) == 0)
+					{
+						*out = false;
+						res = 1;
+						break;
+					}
+					
+					res = -1;
+					break;
+
+				default:
+					res = -1;
+					break;
+			}
+			
+			free(dest);
+			
+			break;
+		}
+
+		case xltypeNil:
+		case xltypeMissing:
+		case xltypeErr:
+			res = 0;
+			break;
+
+        default:
+			res = -1;
+			break;
+    }
+	
+	return res;
+}
+
+static inline int cell_to_varchar(
+    LPXLOPER12 		cell,
+    duckdb_vector 	vec,
+	idx_t 			out_rows
+)
+{
+	int res = -1;
+	
+	switch (LPXLOPER12_TYPE(cell))
+	{
+		case xltypeStr:
+		{
+			wchar_t *src = cell->val.str;
+			char *dest = NULL;
+			
+			if (!src)
+			{
+				res = 0;
+				break;
+			}
+
+			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
+			{
+				res = -1;
+				break;
+			}
+
+			size_t n;
+			char *trimmed = trim_whitespace(dest, &n);
+
+			switch (n)
+			{
+				case 0:
+					free(dest);
+					res = 0;
+					goto done;
+
+				case 3:
+					if (strncasecmp(trimmed, "n/a", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				case 4:
+					if (strncasecmp(trimmed, "null", n) == 0)
+					{
+						free(dest);
+						res = 0;
+						goto done;
+					}
+
+					break;
+
+				default:
+					break;
+			}
+
+			DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, dest);
+			free(dest);
+
+			res = 1;
+			break;
+		}
+
+		case xltypeInt:
+		{
+			char buf[32];
+			snprintf(buf, sizeof(buf), "%d", cell->val.w);
+			DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, buf);
+
+			res = 1;
+			break;
+		}
+
+		case xltypeNum:
+		{
+			char buf[64];
+			snprintf(buf, sizeof(buf), "%.17g", cell->val.num);
+			DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, buf);
+
+			res = 1;
+			break;
+		}
+
+		case xltypeBool:
+			DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(
+				vec,
+				out_rows,
+				cell->val.xbool ? "TRUE" : "FALSE"
+			);
+
+			res = 1;
+			break;
+
+		case xltypeNil:
+		case xltypeMissing:
+		case xltypeErr:
+			res = 0;
+			break;
+
+		default:
+			res = -1;
+			break;
+	}
+
+done:
+
+	return res;
+}
+
+#define SET_SCANNING_ERROR(BUF, LEN, MSG) \
     format_error_message( \
         BUF, \
-        ERR_MSG_MAX_LEN, \
+        LEN, \
         "scanning xlrange", \
         NULL, \
         -1, \
@@ -953,34 +1833,36 @@ fail:
         false \
     )
 
-static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
+static void xlrange_scan
+(
+	duckdb_function_info 	info,
+	duckdb_data_chunk 		output
+)
 {
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
 
     xlrange_scan_state_t *state = DUCKDB_FUNCTION_GET_INIT_DATA(info);
-
     if (!state)
     {
-        SET_SCANNING_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+        SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
         goto fail;
     }
 
     bool has_header = state->has_header;
-
+	bool ignore_errors = state->ignore_errors;
     idx_t out_rows = 0;
+	
+	char *msg = NULL;
 
-    while (
-        state->next_row < state->nrows
-        && out_rows < state->vec_size)
+    while (state->next_row < state->nrows && out_rows < state->vec_size)
     {
         for (size_t c = 0; c < state->ncols; c++)
         {
             duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(output, c);
-
             if (!vec)
             {
-                SET_SCANNING_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+                SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
                 goto fail;
             }
 
@@ -988,304 +1870,107 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
             LPXLOPER12 cell = &state->lparray[idx];
 
-			bool ignore_errors = state->ignore_errors;
-
             switch (state->types[c])
             {
                 case DUCKDB_TYPE_INTEGER:
                 {
                     int32_t *data = DUCKDB_VECTOR_GET_DATA(vec);
-
                     if (!data)
                     {
-                        SET_SCANNING_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+                        SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
                         goto fail;
                     }
 
-                    switch (LPXLOPER12_TYPE(cell))
-                    {
-                        case xltypeInt:
-                            data[out_rows] = (int32_t)cell->val.w;
-                            break;
-
-                        case xltypeNum:
-                            if (!is_int(cell->val.num))
-                            {
-								if (ignore_errors)
-									goto sqlnull;
-								
-                                format_error_message(
-                                    errmsg,
-                                    sizeof(errmsg),
-                                    "scanning xlrange",
-                                    state->colnames[c],
-                                    -1,
-                                    (long long)state->next_row,
-                                    ERR_MSG_XLRANGE_INT,
-                                    has_header
-                                );
-                                goto fail;
-                            }
-
-                            data[out_rows] = (int32_t)cell->val.num;
-                            break;
-
-                        case xltypeBool:
-                            data[out_rows] = (cell->val.xbool == true) ? 1 : 0;
-                            break;
-
-                        case xltypeStr:
-                        {
-                            wchar_t *src = cell->val.str;
-
-                            if (!src)
-                                goto sqlnull;
-
-                            char *dest = NULL;
-                            char *endptr = NULL;
-                            long long num;
-                            bool ok = false;
-
-                            if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-                                goto int_convert_cleanup;
-
-                            errno = 0;
-
-                            num = strtoll(dest, &endptr, 10);
-
-                            if (errno == ERANGE
-                                || endptr == dest
-                                || *endptr != '\0'
-                                || num < INT32_MIN
-                                || num > INT32_MAX)
-                            {
-                                goto int_convert_cleanup;
-                            }
-                            
-                            data[out_rows] = (int32_t)num;
-                            ok = true;
-
-                        int_convert_cleanup:
-
-                            free(dest);
-
-                            if (!ok) 
-                            {
-								if (ignore_errors)
-									goto sqlnull;
-
-                                format_error_message(
-                                    errmsg,
-                                    sizeof(errmsg),
-                                    "scanning xlrange",
-                                    state->colnames[c],
-                                    -1,
-                                    (long long)state->next_row,
-                                    ERR_MSG_XLRANGE_INT,
-                                    has_header
-                                );
-
-                                goto fail;
-                            }
-                            break;
-                        }
-
-                        default:
-                            goto sqlnull;
-                    }
+					int32_t val;
+                    switch (cell_to_integer(cell, &val))
+					{
+						case 1:
+							data[out_rows] = val;
+							break;
+						
+						case 0:
+							goto sqlnull;
+						
+						case -1:
+						default:
+							msg = ERR_MSG_XLRANGE_INT;
+							goto incompatible;
+					}
+					
                     break;
                 }
 
                 case DUCKDB_TYPE_DOUBLE:
                 {
                     double *data = DUCKDB_VECTOR_GET_DATA(vec);
-
                     if (!data)
                     {
-                        SET_SCANNING_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+                        SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
                         goto fail;
                     }
 
-                    switch (LPXLOPER12_TYPE(cell))
-                    {
-                        case xltypeNum:
-                            data[out_rows] = cell->val.num;
-                            break;
-
-                        case xltypeInt:
-                            data[out_rows] = (double)cell->val.w;
-                            break;
-
-                        case xltypeBool:
-                            data[out_rows] = (cell->val.xbool == true) ? 1.0 : 0.0;
-                            break;
-
-                        case xltypeStr:
-                        {
-                            wchar_t *src = cell->val.str;
-
-                            if (!src)
-                                goto sqlnull;
-
-                            char *dest = NULL;
-                            char *endptr = NULL;
-                            double num;
-                            bool ok = false;
-
-                            if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-                                goto double_convert_cleanup;
-
-                            errno = 0;
-
-                            num = strtod(dest, &endptr);
-
-                            if (errno == ERANGE
-                                || endptr == dest
-                                || *endptr != '\0'
-                                || !isfinite(num))
-                            {
-                                goto double_convert_cleanup;
-                            }
-                            
-                            data[out_rows] = num;
-                            ok = true;
-
-                        double_convert_cleanup:
-
-                            free(dest);
-
-                            if (!ok) 
-                            {
-								if (ignore_errors)
-									goto sqlnull;
-								
-                                format_error_message(
-                                    errmsg,
-                                    sizeof(errmsg),
-                                    "scanning xlrange",
-                                    state->colnames[c],
-                                    -1,
-                                    (long long)state->next_row,
-                                    ERR_MSG_XLRANGE_DOUBLE,
-                                    has_header
-                                );
-
-                                goto fail;
-                            }
-                            break;
-                        }
-
-                        default:
-                            goto sqlnull;
-                    }
+					double val;
+                    switch (cell_to_double(cell, &val))
+					{
+						case 1:
+							data[out_rows] = val;
+							break;
+						
+						case 0:
+							goto sqlnull;
+						
+						case -1:
+						default:
+							msg = ERR_MSG_XLRANGE_DOUBLE;
+							goto incompatible;
+					}
+					
                     break;
                 }
 
                 case DUCKDB_TYPE_BOOLEAN:
                 {
                     bool *data = DUCKDB_VECTOR_GET_DATA(vec);
-
                     if (!data)
                     {
-                        SET_SCANNING_ERROR(errmsg, ERR_MSG_XLRANGE_INTERNAL);
+                        SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
                         goto fail;
                     }
                     
-                    switch (LPXLOPER12_TYPE(cell)) {
-                        case xltypeBool:
-                            data[out_rows] = cell->val.xbool ? true : false;
-                            break;
-
-                        case xltypeInt:
-                            data[out_rows] = (cell->val.w != 0);
-                            break;
-
-                        case xltypeNum:
-                            data[out_rows] = (cell->val.num != 0.0);
-                            break;
-
-                        default:
-                            goto sqlnull;
-                    }
+					bool val;
+                    switch (cell_to_bool(cell, &val))
+					{
+						case 1:
+							data[out_rows] = val;
+							break;
+						
+						case 0:
+							goto sqlnull;
+						
+						case -1:
+						default:
+							msg = ERR_MSG_XLRANGE_BOOL;
+							goto incompatible;
+					}
+					
                     break;
                 }
 
                 case DUCKDB_TYPE_VARCHAR:
                 {
-                    switch (LPXLOPER12_TYPE(cell))
-                    {
-                        case xltypeNil:
-                        case xltypeMissing:
-                        case xltypeErr:
-                            goto sqlnull;
-
-                        case xltypeStr:
-                        {
-                            wchar_t *src = cell->val.str;
-
-                            if (!src) goto sqlnull;
-
-                            char *dest = NULL;
-                            bool ok = false;
-
-                            if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-                                goto varchar_convert_cleanup;
-
-                            DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, dest);
-                            ok = true;
-
-                        varchar_convert_cleanup:
-
-                            free(dest);
-
-                            if (!ok)
-                            {
-								if (ignore_errors)
-									goto sqlnull;
-								
-                                format_error_message(
-                                    errmsg,
-                                    sizeof(errmsg),
-                                    "scanning xlrange",
-                                    state->colnames[c],
-                                    -1,
-                                    (long long)state->next_row,
-                                    ERR_MSG_XLRANGE_VARCHAR,
-                                    has_header
-                                );
-
-                                goto fail;
-                            }
-                            break;
-                        }    
-
-                        case xltypeInt:
-                        {
-                            char buf[32];
-                            snprintf(buf, sizeof(buf), "%d", cell->val.w);
-                            DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, buf);
-                            break;
-                        }
-
-                        case xltypeNum:
-                        {
-                            char buf[64];
-                            snprintf(buf, sizeof(buf), "%.15g", cell->val.num);
-                            DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(vec, out_rows, buf);
-                            break;
-                        }
-
-                        case xltypeBool:
-                            DUCKDB_VECTOR_ASSIGN_STRING_ELEMENT(
-                                vec,
-                                out_rows,
-                                cell->val.xbool ? "TRUE" : "FALSE"
-                            );
-                            break;
-
-                        default:
-                            goto sqlnull;
-                    }
+                    switch (cell_to_varchar(cell, vec, out_rows))
+					{
+						case 1:
+							break;
+						
+						case 0:
+							goto sqlnull;
+						
+						case -1:
+							msg = ERR_MSG_XLRANGE_VARCHAR;
+							goto incompatible;
+					}
+					
                     break;
                 }
 
@@ -1295,6 +1980,24 @@ static void xlrange_scan(duckdb_function_info info, duckdb_data_chunk output)
 
             continue;
 
+		incompatible:
+		
+			if (!ignore_errors)
+			{
+				format_error_message(
+					errmsg,
+					sizeof(errmsg),
+					"scanning xlrange",
+					state->colnames[c],
+					-1,
+					(long long)state->next_row,
+					msg,
+					has_header
+				);
+				
+				goto fail;
+			}
+			
         sqlnull:
 
             DUCKDB_VECTOR_ENSURE_VALIDITY_WRITABLE(vec);
@@ -1322,8 +2025,6 @@ fail:
     );
 
     DUCKDB_DATA_CHUNK_SET_SIZE(output, 0);
-
-    return;
 }
 
 int register_xlrange_func
@@ -1346,7 +2047,6 @@ int register_xlrange_func
     *function = NULL;
 
     table_func = DUCKDB_CREATE_TABLE_FUNCTION();
-
     if (!table_func)
         goto fail;
 
@@ -1355,16 +2055,16 @@ int register_xlrange_func
     if (!ctx)
         goto fail;
 
-    ctx->ranges = ranges;
+    ctx->ranges = ranges; // borrows
     ctx->nrange = nrange;
 
     DUCKDB_TABLE_FUNCTION_SET_EXTRA_INFO(table_func, ctx, free);
+	ctx = NULL;
 
     // xlrange(index), xlrange(..., sample = n)
     int_type = DUCKDB_CREATE_LOGICAL_TYPE(DUCKDB_TYPE_INTEGER);
     // xlrange(..., all_varchar = true)
     bool_type = DUCKDB_CREATE_LOGICAL_TYPE(DUCKDB_TYPE_BOOLEAN);
-
     if (!int_type || !bool_type)
         goto fail;
 
@@ -1388,8 +2088,10 @@ int register_xlrange_func
     goto cleanup;
 
 fail:
+
     if (table_func)
         DUCKDB_DESTROY_TABLE_FUNCTION(&table_func);
+
     res = 0;
 
 cleanup:
