@@ -225,9 +225,6 @@ typedef double (*TO_DUCKDB_FUNCTION_TYPE(duckdb_hugeint_to_double))(
 typedef double (*TO_DUCKDB_FUNCTION_TYPE(duckdb_uhugeint_to_double))(
     duckdb_uhugeint val
 );
-typedef duckdb_time_tz_struct (*TO_DUCKDB_FUNCTION_TYPE(duckdb_from_time_tz))(
-    duckdb_time_tz micros
-);
 
 /* Table function registration */
 typedef duckdb_table_function (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_table_function))(void);
@@ -327,10 +324,6 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_function_set_error))(
 );
 
 /* Scalar function API */
-typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_register_scalar_function))(
-    duckdb_connection con,
-    duckdb_scalar_function scalar_function
-);
 typedef duckdb_scalar_function (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_scalar_function))();
 typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_scalar_function_set_name))(
     duckdb_scalar_function scalar_function,
@@ -460,8 +453,7 @@ X(duckdb_string_t_data, DUCKDB_STRING_T_DATA)
 /* Numeric and date/time helpers */
 #define DUCKDB_UTILITY_FUNCTIONS(X) \
 X(duckdb_hugeint_to_double, DUCKDB_HUGEINT_TO_DOUBLE) \
-X(duckdb_uhugeint_to_double, DUCKDB_UHUGEINT_TO_DOUBLE) \
-X(duckdb_from_time_tz, DUCKDB_FROM_TIME_TZ)
+X(duckdb_uhugeint_to_double, DUCKDB_UHUGEINT_TO_DOUBLE)
 
 /* Table function registration */
 #define DUCKDB_TABLE_FUNCTION_FUNCTIONS(X) \
@@ -497,7 +489,6 @@ X(duckdb_function_set_error, DUCKDB_FUNCTION_SET_ERROR)
 
 /* Scalar function API */
 #define DUCKDB_SCALAR_API_FUNCTIONS(X) \
-X(duckdb_register_scalar_function, DUCKDB_REGISTER_SCALAR_FUNCTION) \
 X(duckdb_create_scalar_function, DUCKDB_CREATE_SCALAR_FUNCTION) \
 X(duckdb_scalar_function_set_name, DUCKDB_SCALAR_FUNCTION_SET_NAME) \
 X(duckdb_scalar_function_add_parameter, DUCKDB_SCALAR_FUNCTION_ADD_PARAMETER) \
