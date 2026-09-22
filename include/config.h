@@ -103,4 +103,10 @@ static const double DEC_DIVISORS[] = {
     1e10,   1e11,   1e12,   1e13,   1e14,   1e15,   1e16,   1e17,   1e18
 };
 
+/*
+ * Constant for xlrange
+ */
+#define GENERATED_COLNAME_SIZE 		30
+#define SUFFIX_LEN					20
+
 #endif /* CONFIG_H */
