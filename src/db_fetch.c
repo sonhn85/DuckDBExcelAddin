@@ -22,7 +22,6 @@ void free_and_reset_chunk_list(chunk_list *chunklist)
         return;
 
     chunk_node *node = chunklist->head;
-
     while (node)
     {
         chunk_node *next = node->next;
@@ -55,7 +54,6 @@ static void format_error_message(
         return;
 
     if (colname)
-    {
         snprintf(
             buf,
             buf_size,
@@ -64,9 +62,7 @@ static void format_error_message(
             colname,
             msg
         );
-    }
     else
-    {
         snprintf(
             buf,
             buf_size,
@@ -74,7 +70,6 @@ static void format_error_message(
             action,
             msg
         );
-    }
 }
 
 int fetch_chunks(
@@ -104,7 +99,6 @@ int fetch_chunks(
     free_and_reset_chunk_list(chunklist);
 
     idx_t ncols = DUCKDB_COLUMN_COUNT(result);
-
     if (ncols == 0)
     {
         format_error_message(
@@ -145,7 +139,7 @@ int fetch_chunks(
             buf_size,
             "fetching data",
             NULL,
-            ERR_MSG_ALLOC
+            ERR_MSG_INTERNAL
         );
         goto fail;
     }
@@ -159,7 +153,6 @@ int fetch_chunks(
     for (idx_t c = 0; c < ncols; c++)
     {
         const char *col_name = DUCKDB_COLUMN_NAME(result, c);
-
         if (!col_name)
         {
             format_error_message(
@@ -183,7 +176,6 @@ int fetch_chunks(
             case DUCKDB_TYPE_DECIMAL:
             {
                 duckdb_logical_type lt = DUCKDB_COLUMN_LOGICAL_TYPE(result, c);
-
                 if (!lt) {
                     format_error_message(
                         errmsg,
@@ -196,7 +188,6 @@ int fetch_chunks(
                 }
 
                 base_types[c] = DUCKDB_DECIMAL_INTERNAL_TYPE(lt);
-
                 dec_scales[c] = DUCKDB_DECIMAL_SCALE(lt);
 
                 DUCKDB_DESTROY_LOGICAL_TYPE(&lt);
@@ -248,15 +239,11 @@ int fetch_chunks(
         uint64_t **valid_masks = NULL;
 
         duckdb_data_chunk chunk = DUCKDB_FETCH_CHUNK(*result);
-
         if (!chunk)
             break;
 
         idx_t nrows = DUCKDB_DATA_CHUNK_GET_SIZE(chunk);
-
-        idx_t row_total = chunklist->nrows + nrows;
-
-        if (row_total > XL_MAX_ROW - 1)
+        if (nrows > (idx_t)(XL_MAX_ROW - 1) - chunklist->nrows)
         {
             format_error_message(
                 errmsg,
@@ -267,6 +254,8 @@ int fetch_chunks(
             );
             goto loop_fail;
         }
+
+        idx_t row_total = chunklist->nrows + nrows;
 
         node = malloc(sizeof(*node));
         vectors = malloc(ncols * sizeof(*vectors));
@@ -279,7 +268,7 @@ int fetch_chunks(
                 buf_size,
                 "fetching data",
                 NULL,
-                ERR_MSG_ALLOC
+                ERR_MSG_INTERNAL
             );
             goto loop_fail;
         }
@@ -287,7 +276,6 @@ int fetch_chunks(
         for (idx_t c = 0; c < ncols; c++)
         {
             duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(chunk, c);
-
             if (!vec)
             {
                 format_error_message(
@@ -301,7 +289,6 @@ int fetch_chunks(
             }
 
             void *vec_data = DUCKDB_VECTOR_GET_DATA(vec);
-
             if (!vec_data)
             {
                 format_error_message(
@@ -362,85 +349,85 @@ fail:
 #define TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_to_##XLTYPE
 #define TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_based_decimal_to_##XLTYPE
 
-#define DEFINE_NON_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
+#define DEFINE_NON_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO)                    \
 void TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
-{                                                                                   \
-    idx_t ncols = chunklist->ncols;                                                 \
-    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)         \
-    {                                                                               \
-        VECTOR_TYPE *val = node->vectors[col];                                      \
-        idx_t nrows = node->nrows;                                                  \
-        uint64_t *valid_mask = node->valid_masks[col];                              \
-        if (!valid_mask)                                                            \
-        {                                                                           \
-            for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                 \
-            {                                                                       \
-                CONVERTER_MACRO;                                                    \
-            }                                                                       \
-        } else {                                                                    \
-            for (idx_t base = 0; base < nrows; base += 64)                          \
-            {                                                                       \
-                uint64_t mask = valid_mask[base / 64];                              \
-                idx_t count = nrows - base;                                         \
-                if (count > 64)                                                     \
-                    count = 64;                                                     \
-                while (count--)                                                     \
-                {                                                                   \
-                    if (mask & 1ULL)                                                \
-                    {                                                               \
-                        CONVERTER_MACRO;                                            \
-                    } else {                                                        \
-                        cell->xltype = xltypeErr;                                   \
-                        cell->val.err = xlerrNA;                                    \
-                    }                                                               \
-                    mask >>= 1;                                                     \
-                    cell += ncols;                                                  \
-                    val++;                                                          \
-                }                                                                   \
-            }                                                                       \
-        }                                                                           \
-    }                                                                               \
+{                                                                                                                   \
+    idx_t ncols = chunklist->ncols;                                                                                 \
+    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)                                         \
+    {                                                                                                               \
+        VECTOR_TYPE *val = node->vectors[col];                                                                      \
+        idx_t nrows = node->nrows;                                                                                  \
+        uint64_t *valid_mask = node->valid_masks[col];                                                              \
+        if (!valid_mask)                                                                                            \
+        {                                                                                                           \
+            for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                                                 \
+            {                                                                                                       \
+                CONVERTER_MACRO;                                                                                    \
+            }                                                                                                       \
+        } else {                                                                                                    \
+            for (idx_t base = 0; base < nrows; base += 64)                                                          \
+            {                                                                                                       \
+                uint64_t mask = valid_mask[base / 64];                                                              \
+                idx_t count = nrows - base;                                                                         \
+                if (count > 64)                                                                                     \
+                    count = 64;                                                                                     \
+                while (count--)                                                                                     \
+                {                                                                                                   \
+                    if (mask & 1ULL)                                                                                \
+                    {                                                                                               \
+                        CONVERTER_MACRO;                                                                            \
+                    } else {                                                                                        \
+                        cell->xltype = xltypeErr;                                                                   \
+                        cell->val.err = xlerrNA;                                                                    \
+                    }                                                                                               \
+                    mask >>= 1;                                                                                     \
+                    cell += ncols;                                                                                  \
+                    val++;                                                                                          \
+                }                                                                                                   \
+            }                                                                                                       \
+        }                                                                                                           \
+    }                                                                                                               \
 }
 
-#define DEFINE_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
-void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
-{                                                                                   \
-    idx_t ncols = chunklist->ncols;                                                 \
-    double dec_divisor = DEC_DIVISORS[chunklist->dec_scales[col]];                  \
-    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)         \
-    {                                                                               \
-        VECTOR_TYPE *val = node->vectors[col];                                      \
-        idx_t nrows = node->nrows;                                                  \
-        uint64_t *valid_mask = node->valid_masks[col];                              \
-        if (!valid_mask)                                                            \
-        {                                                                           \
-            for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                 \
-            {                                                                       \
-                CONVERTER_MACRO(dec_divisor);                                       \
-            }                                                                       \
-        } else {                                                                    \
-            for (idx_t base = 0; base < nrows; base += 64)                          \
-            {                                                                       \
-                uint64_t mask = valid_mask[base / 64];                              \
-                idx_t count = nrows - base;                                         \
-                if (count > 64)                                                     \
-                    count = 64;                                                     \
-                while (count--)                                                     \
-                {                                                                   \
-                    if (mask & 1ULL)                                                \
-                    {                                                               \
-                        CONVERTER_MACRO(dec_divisor);                               \
-                    } else {                                                        \
-                        cell->xltype = xltypeErr;                                   \
-                        cell->val.err = xlerrNA;                                    \
-                    }                                                               \
-                    mask >>= 1;                                                     \
-                    cell += ncols;                                                  \
-                    val++;                                                          \
-                }                                                                   \
-            }                                                                       \
-        }                                                                           \
-    }                                                                               \
+#define DEFINE_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO)                        \
+void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col)     \
+{                                                                                                                   \
+    idx_t ncols = chunklist->ncols;                                                                                 \
+    double dec_divisor = DEC_DIVISORS[chunklist->dec_scales[col]];                                                  \
+    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)                                         \
+    {                                                                                                               \
+        VECTOR_TYPE *val = node->vectors[col];                                                                      \
+        idx_t nrows = node->nrows;                                                                                  \
+        uint64_t *valid_mask = node->valid_masks[col];                                                              \
+        if (!valid_mask)                                                                                            \
+        {                                                                                                           \
+            for (idx_t i = 0; i < nrows; i++, cell += ncols, val++)                                                 \
+            {                                                                                                       \
+                CONVERTER_MACRO(dec_divisor);                                                                       \
+            }                                                                                                       \
+        } else {                                                                                                    \
+            for (idx_t base = 0; base < nrows; base += 64)                                                          \
+            {                                                                                                       \
+                uint64_t mask = valid_mask[base / 64];                                                              \
+                idx_t count = nrows - base;                                                                         \
+                if (count > 64)                                                                                     \
+                    count = 64;                                                                                     \
+                while (count--)                                                                                     \
+                {                                                                                                   \
+                    if (mask & 1ULL)                                                                                \
+                    {                                                                                               \
+                        CONVERTER_MACRO(dec_divisor);                                                               \
+                    } else {                                                                                        \
+                        cell->xltype = xltypeErr;                                                                   \
+                        cell->val.err = xlerrNA;                                                                    \
+                    }                                                                                               \
+                    mask >>= 1;                                                                                     \
+                    cell += ncols;                                                                                  \
+                    val++;                                                                                          \
+                }                                                                                                   \
+            }                                                                                                       \
+        }                                                                                                           \
+    }                                                                                                               \
 }
 
 #define INT_TO_DBL \
@@ -495,16 +482,16 @@ void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, ch
         } \
     } while (0)
 
-#define DEC_TO_DBL(divisor) \
+#define DEC_TO_DBL(DIVISOR) \
     do { \
         cell->xltype = xltypeNum; \
-        cell->val.num = (double)*val / divisor; \
+        cell->val.num = (double)*val / DIVISOR; \
     } while (0)
 
-#define DEC128_TO_DBL(divisor) \
+#define DEC128_TO_DBL(DIVISOR) \
     do { \
         cell->xltype = xltypeNum; \
-        cell->val.num = DUCKDB_HUGEINT_TO_DOUBLE(*val) / divisor; \
+        cell->val.num = DUCKDB_HUGEINT_TO_DOUBLE(*val) / DIVISOR; \
     } while (0)
 
 #define DATE_TO_DBL \
@@ -602,7 +589,6 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
     LPXLOPER12 lparray = NULL;
-
     LPXLOPER12 range = NULL;
 
     if (!chunklist)
@@ -633,7 +619,6 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
     }
 
     range = calloc(1, sizeof(*range));
-
     if (!range)
     {
         format_error_message(
@@ -641,7 +626,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
             sizeof(errmsg),
             "writing output",
             NULL,
-            ERR_MSG_ALLOC
+            ERR_MSG_INTERNAL
         );
         goto fail;
     }
@@ -669,8 +654,10 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
     for (size_t c = 0; c < ncols; c++, cell++)
     {
         const char *col_name = col_names[c];
-
-        if (!col_name)
+        wchar_t *xlstr = NULL; 
+        if (!col_name
+            || utf8_to_xlstr(&xlstr, col_name, -1) == 0
+            || !xlstr)
         {
             format_error_message(
                 errmsg,
@@ -679,36 +666,16 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
                 NULL,
                 ERR_MSG_INTERNAL
             );
-            goto rollback;
-        }
 
-        wchar_t *xlstr = NULL; 
+            xloper12_free_array(lparray, c);
+            lparray = NULL;
 
-        if (utf8_to_xlstr(&xlstr, col_name, -1) == 0 || !xlstr)
-        {
-            format_error_message(
-                errmsg,
-                sizeof(errmsg),
-                "writing output",
-                col_name,
-                ERR_MSG_INTERNAL
-            );
-            goto rollback;
+            goto fail;
         }
 
         // Transfer ownership via xlbitDLLFree 
         cell->xltype = xltypeStr | xlbitDLLFree;
         cell->val.str = xlstr;
-
-        continue;
-
-    rollback:
-
-        xloper12_free_array(lparray, c);
-
-        lparray = NULL;
-
-        goto fail;
     }
 
     for (size_t c = 0; c < ncols; c++, cell++)
