@@ -25,9 +25,6 @@
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
 #define ERR_MSG_XLRANGE_BOOL	            "Failed to convert value to BOOLEAN."
 
-#define GENERATED_COLNAME_SIZE 				30
-#define SUFFIX_LEN							20
-
 typedef struct colname_hash_t	/* hash table to store column name */
 {
     char *name;             	/* key */
