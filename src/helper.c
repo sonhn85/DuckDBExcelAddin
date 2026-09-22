@@ -294,7 +294,7 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
     dst_tmp = *src;
 
     /* Clear ownership flag and restore it only after deep-copy succeeds */
-    dst_tmp.xltype &= ~(xlbitDLLFree |*xlbitXLFree);
+    dst_tmp.xltype &= ~(xlbitDLLFree | xlbitXLFree);
 
     switch (LPXLOPER12_TYPE(src)) 
     {
@@ -365,7 +365,7 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
                     case xltypeErr:
                         /* Shallow copy is sufficient */
                         dst_cells[i] = src_cells[i];
-                        dst_cells[i].xltype &= ~(xlbitDLLFree |*xlbitXLFree);
+                        dst_cells[i].xltype &= ~(xlbitDLLFree | xlbitXLFree);
                         break;
 
                     default:
