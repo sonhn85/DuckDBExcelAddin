@@ -23,9 +23,9 @@
 #define ERR_MSG_XLRANGE_DOUBLE              "Failed to convert value to DOUBLE."
 #define ERR_MSG_XLRANGE_INT                 "Failed to convert value to INTEGER."
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
-#define ERR_MSG_XLRANGE_BOOL	             "Failed to convert value to BOOLEAN."
+#define ERR_MSG_XLRANGE_BOOL	            "Failed to convert value to BOOLEAN."
 
-#define GENERATED_COLNAME_SIZE 				100
+#define GENERATED_COLNAME_SIZE 				30
 #define SUFFIX_LEN							20
 
 typedef struct colname_hash_t	/* hash table to store column name */
@@ -66,13 +66,13 @@ typedef struct xlrange_scan_state_t
 } xlrange_scan_state_t;
 
 /*
- * Check for name duplication in hash table
+ * Check for name duplication using hash table
  * Duplicate names are prefixed: name, name_1, name_2 ...
  * Return:
  * 		fixed name: success
  *      NULL:		error
  */
-static char *make_unique_name
+static inline char *make_unique_name
 (
     colname_hash_t 	**hash,
     const char 		*name
@@ -81,7 +81,6 @@ static char *make_unique_name
     colname_hash_t *entry = NULL;
 
     HASH_FIND_STR(*hash, name, entry);
-
     if (!entry)
     {
         entry = malloc(sizeof(*entry));
@@ -146,48 +145,66 @@ static void format_error_message
     if (!buf || buf_size == 0 || !action || !msg)
         return;
 
-    if (has_header && colname)
+    if (has_header)
     {
-        if (row_idx >= 0)
-        {
-            snprintf(
-                buf,
-                buf_size,
-                "Error %s: Column %s, row %lld: %s",
-                action,
-                colname,
-                row_idx + 2, // +1 for 0-based index, +1 for header row 
-                msg
-            );
-        }
-        else
-        {
-            snprintf(
-                buf,
-                buf_size,
-                "Error %s: Column %s: %s",
-                action,
-                colname,
-                msg
-            );
-        }
+		if (colname)
+		{
+			if (row_idx >= 0)
+				snprintf(
+					buf,
+					buf_size,
+					"Error %s: Column %s, row %lld: %s",
+					action,
+					colname,
+					row_idx + 2, // +1 for 0-based index, +1 for header row
+					msg
+				);
+			else
+				snprintf(
+					buf,
+					buf_size,
+					"Error %s: Column %s: %s",
+					action,
+					colname,
+					msg
+				);
+		}
+		else
+		{
+			if (row_idx >= 0)
+				snprintf(
+					buf,
+					buf_size,
+					"Error %s: Column %lld, row %lld: %s",
+					action,
+					col_idx + 1,
+					row_idx + 2, // +1 for 0-based index, +1 for header row
+					msg
+				);
+			else
+				snprintf(
+					buf,
+					buf_size,
+					"Error %s: Column %lld: %s",
+					action,
+					col_idx + 1,
+					msg
+				);
+		}
     }
     else if (col_idx >= 0)
     {
         if (row_idx >= 0)
-        {
             snprintf(
                 buf,
                 buf_size,
                 "Error %s: Column #%lld, row %lld: %s",
                 action,
                 col_idx + 1,
-                row_idx + (has_header ? 2 : 1), // +1 for 0-based index, +1 for header row 
+                row_idx + 1, // +1 for 0-based index 
                 msg
             );
-        }
         else
-        {
             snprintf(
                 buf,
                 buf_size,
@@ -196,7 +213,6 @@ static void format_error_message
                 col_idx + 1,
                 msg
             );
-        }
     }
     else
     {
@@ -230,12 +246,14 @@ static void free_bind_data(void *p)
     free(bind_data);
 }
 
-/* Check if a double is actually an int */
-static bool is_whole_number(double num)
+/* Check if a double is whole number */
+static inline bool is_whole_number(double num)
 {
-    return (fabs(fmod(num, 1.0)) < EPSILON
-            && num >= INT32_MIN
-            && num <= INT32_MAX);
+	double n = round(num);
+
+    return fabs(num - n) < EPSILON
+            && n >= INT32_MIN
+            && n <= INT32_MAX;
 }
 
 #define SET_BIND_ERROR(BUF, LEN, MSG) \
@@ -268,7 +286,6 @@ static int get_int_param
 	int ok = -1;
 	
 	duckdb_value val = DUCKDB_BIND_GET_PARAMETER(info, index);
-
     if (!val)
     {
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
@@ -283,7 +300,6 @@ static int get_int_param
     }
 
 	duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);  /* owned by val */
-
     if(!lt)
     {
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
@@ -312,7 +328,7 @@ cleanup:
  *        0: missing
  *        -1: error
  */
-#define DEFINE_GENERATE_NAMED_PARAM_FUNC(TYPE, TYPE_ENUM, GETTER)					\
+#define DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(TYPE, TYPE_ENUM, GETTER)				\
 static int get_##TYPE##_named_param													\
 (																					\
 	duckdb_bind_info	info,														\
@@ -325,7 +341,6 @@ static int get_##TYPE##_named_param													\
 	int ok = 0;																		\
 																					\
     duckdb_value val = DUCKDB_BIND_GET_NAMED_PARAMETER(info, name);					\
-																					\
     if (val)																		\
     {																				\
 		ok = -1;																	\
@@ -337,7 +352,6 @@ static int get_##TYPE##_named_param													\
         }																			\
 																					\
 		duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);						\
-																					\
         if (!lt)																	\
         {																			\
             SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL); 		\
@@ -362,8 +376,8 @@ static int get_##TYPE##_named_param													\
 }
 
 /* Generate get_int_named_param and get_bool_named_param functions */
-DEFINE_GENERATE_NAMED_PARAM_FUNC(int,  DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
-DEFINE_GENERATE_NAMED_PARAM_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
+DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(int,  DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
+DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
 
 /* Parse parameters from xlrange() call */
 static int parse_params
@@ -386,16 +400,16 @@ static int parse_params
     if (DUCKDB_BIND_GET_PARAMETER_COUNT(info) != 1)
     {
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
-        goto fail;
+        return 0;
     }
 
     if (get_int_param(info, 0, &range_idx_tmp, errmsg, err_buf_size) != 1)
-        goto fail;
+        return 0;
 
     if (range_idx_tmp <= 0 || (size_t)range_idx_tmp > ctx->nrange)
     {
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
-        goto fail;
+        return 0;
     }
 
     /* xlrange(..., header = true) */
@@ -412,7 +426,7 @@ static int parse_params
 		|| get_bool_named_param(info, "all_varchar", &all_varchar_tmp, errmsg, err_buf_size) == -1
 		|| get_bool_named_param(info, "ignore_errors", &ignore_errors_tmp, errmsg, err_buf_size) == -1)
     {
-        goto fail;
+        return 0;
     }
 
     /* xlrange(..., sample = XLRANGE_DEFAULT_SAMPLE_COUNT) */
@@ -420,14 +434,12 @@ static int parse_params
     if (!all_varchar_tmp)
     {
 		if (get_int_named_param(info, "sample", &nsample_tmp, errmsg, err_buf_size) == -1)
-		{
-			goto fail;
-		}
+			return 0;
 		
 		if (nsample_tmp < 0)
 		{
 			SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INVALID_PARAM);
-			goto fail;
+			return 0;
 		}
     }
 
@@ -439,10 +451,6 @@ static int parse_params
 	*ignore_errors	= ignore_errors_tmp;
 	
 	return 1;
-
-fail:
-
-	return 0;
 }
 
 static int get_column_names
@@ -456,15 +464,16 @@ static int get_column_names
 	size_t		err_buf_size
 )
 {
-    int ok = 0;
-	size_t unnamed_idx = 0;
-	colname_hash_t *hash = NULL;
-	XLOPER12 str_cell;
+    int				ok = 0;
+	size_t			unnamed_idx = 0;
+	colname_hash_t 	*hash = NULL;
+	XLOPER12 		str_cell;
+
+	str_cell.xltype = xltypeNil;
 
     for (size_t i=0; i < ncols; i++, cell++)
     {
         char *colname = NULL;
-		str_cell.xltype = xltypeNil;
 
         if (!has_header)
         {
@@ -507,7 +516,7 @@ static int get_column_names
 					goto name_error;
 				}
 			}
-			else /* not strict */
+			else
 			{
 				if (is_null_or_whitespace_xlstr(xlstr))
 				{
@@ -542,12 +551,17 @@ static int get_column_names
 		colnames[i] = colname;
 		colname = NULL;
 
+		if (XLOPER12_TYPE(str_cell) != xltypeNil)
+		{
+			Excel12f(xlFree, NULL, 1, &str_cell);
+			str_cell.xltype = xltypeNil;
+		}
+
 		continue;
 
 	internal_error:
 
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
-		
 		goto cleanup;
 
 	name_error:
@@ -568,10 +582,7 @@ static int get_column_names
 	cleanup:
 
 		if (XLOPER12_TYPE(str_cell) != xltypeNil)
-		{
 			Excel12f(xlFree, NULL, 1, &str_cell);
-			str_cell.xltype = xltypeNil;
-		}
 
 		for (size_t j = 0; j < i; j++)
 		{
@@ -594,7 +605,6 @@ free_hash:
 		free(hash_entry->name);
 		free(hash_entry);
 	}
-	hash = NULL;
 
 	return ok;
 }
@@ -611,9 +621,8 @@ free_hash:
  */
 static inline char *trim_whitespace(char *s, size_t *out_len)
 {
-    while (*s && isspace((unsigned char)*s)) {
+    while (*s && isspace((unsigned char)*s))
         s++;
-    }
 
     if (*s == '\0')
 	{
@@ -622,9 +631,8 @@ static inline char *trim_whitespace(char *s, size_t *out_len)
     }
 
     char *end = s + strlen(s) - 1;
-    while (end > s && isspace((unsigned char)*end)) {
+    while (end > s && isspace((unsigned char)*end))
         end--;
-    }
 
     if (out_len)
         *out_len = (size_t)(end - s + 1);
@@ -649,7 +657,7 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 		|| xlstr_to_utf8(&s, xlstr, NULL) == 0
 		|| !s)
 	{
-		return xltypeStr;
+		return xltypeNil;
 	}
 	
 	WORD type;
@@ -826,11 +834,11 @@ static int infer_types
                 else if (cell_type == xltypeStr)
                 {
 					WORD type = get_xlstr_represented_type(cell->val.str);
-					if (type == xltypeNil)
-						continue;
-
-					xltype = type;
-					break;
+					if (type != xltypeNil)
+					{
+						xltype = type;
+						break;
+					}
                 }
             }
 
@@ -857,6 +865,8 @@ static int infer_types
                         {
                             if (!is_whole_number(cell->val.num))
                                 xltype = xltypeNum;
+
+							continue;
                         }
 						else if (cell_type == xltypeStr)
 						{
@@ -927,19 +937,32 @@ static int infer_types
 						else if (cell_type == xltypeInt)
                         {
                             int v = cell->val.w;
-                            if ((v == 0) || (v == 1))
-                                continue;
+                            if (v == 0 || v == 1)
+							{
+								continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
                         }
                         else if (cell_type == xltypeNum)
                         {
                             double v = cell->val.num;
                             if ((v == 0.0) || (v == 1.0))
+							{
                                 continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
                         }
 						else if (cell_type == xltypeStr)
 						{
 							WORD type = get_xlstr_represented_type(cell->val.str);
-							
 							if (type == xltypeBool || type == xltypeNil)
 							{
 								continue;
