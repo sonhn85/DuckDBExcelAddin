@@ -5,7 +5,7 @@
 #include "helper.h"
 #include "config.h"
 
-#define DEFINE_DUCKDB_FUNCTION_POINTER(duckdb_name, func) TO_DUCKDB_FUNCTION_TYPE(duckdb_name) func = NULL;
+#define DEFINE_DUCKDB_FUNCTION_POINTER(DUCKDB_NAME, FUNCTION_PTR) TO_DUCKDB_FUNCTION_TYPE(DUCKDB_NAME) FUNCTION_PTR = NULL;
 DUCKDB_FUNCTION_POINTERS(DEFINE_DUCKDB_FUNCTION_POINTER)
 
 /* Resolve all required APIs. On failure, report a version mismatch. */
@@ -16,12 +16,12 @@ static int load_DUCKDB_FUNCTION_POINTERS(const HWND hwnd, const HMODULE dll)
 
     const char* func_name = NULL;
 
-    #define RESET_FUNC(ignore, func) do { func = NULL; } while (0);
-    #define LOAD_FUNC(duckdb_name, func) \
+    #define RESET_FUNC(IGNORE, FUNCTION_PTR) do { FUNCTION_PTR = NULL; } while (0);
+    #define LOAD_FUNC(DUCKDB_NAME, FUNCTION_PTR) \
     do { \
-        func_name = TO_STR(duckdb_name); \
-        func = (TO_DUCKDB_FUNCTION_TYPE(duckdb_name))GetProcAddress(dll, func_name); \
-        if (!func) \
+        func_name = TO_STR(DUCKDB_NAME); \
+        FUNCTION_PTR = (TO_DUCKDB_FUNCTION_TYPE(DUCKDB_NAME))GetProcAddress(dll, func_name); \
+        if (!FUNCTION_PTR) \
             goto check_version; \
     } while (0);
 
@@ -102,7 +102,6 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
         dllname,
         PATHCCH_NONE
     );
-
     if (FAILED(hr))
         goto fail;
 
@@ -112,7 +111,6 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
         NULL,
         LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
     );
-
     if (!dll)
         goto fail;
 
