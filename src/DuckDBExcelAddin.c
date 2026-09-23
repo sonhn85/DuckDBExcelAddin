@@ -25,16 +25,16 @@
 #define ERR_MSG_INFO                          "Error: Failed to get add-in info."
 #define ERR_MSG_SCALAR_FUNCS_REGISTER_FAILURE "Error: Scalar functions registration failed."
 
+/* DuckDB runtime and asynchronous worker state. */
 static HMODULE g_duckdb_dll = NULL;
-
 static duckdb_instance_cache db_cache = NULL;
-
 static volatile LONG unloading = 0;
 static volatile LONG active_workers = 0;
 
+/* Owned data required by an asynchronous worker. */
 typedef struct async_context_t
 {
-    LPXLOPER12 asyncHandle;
+    LPXLOPER12 asyncHandle; /* Borrowed Excel asynchronous handle. */
 	wchar_t *db_path;
     wchar_t *init_sql;
     wchar_t *sql;
@@ -67,6 +67,7 @@ static void unreg_funcs(const LPXLOPER12 xllPath)
     XLL_FUNCTIONS(UNREGISTER_FUNCTION)
 }
 
+/* Unregister worksheet functions and unload DuckDB. */
 static void xlUnload(void)
 {
     XLOPER12 xllPath;
@@ -145,6 +146,7 @@ init_db_cache:
 		goto unload;
 	}
 
+    InterlockedExchange(&active_workers, 0);
     InterlockedExchange(&unloading, 0);
 	result = 1;
 	goto cleanup;
@@ -226,11 +228,8 @@ LPXLOPER12 WINAPI xlAddInManagerInfo12(LPXLOPER12 pxAction)
 }
 
 /*
- * Split worksheet arguments into:
- *   - leading xltypeMulti arguments (data ranges)
- *   - subsequent non-range arguments (statement parameters)
- *
- * Optionally deep-copy extracted values.
+ * Split worksheet arguments into leading ranges and trailing bind parameters.
+ * Deep-copy values for asynchronous execution; otherwise create borrowed copies.
  */
 static int split_worksheet_params(
     XLOPER12 **ranges,
@@ -325,13 +324,13 @@ static int split_worksheet_params(
         for (size_t i = 0; i < range_count; i++)
         {
             ranges_tmp[i] = *params[i];
-            ranges_tmp[i].xltype &= ~xlbitDLLFree;
+            XLOPER12_CLEAR_OWNER_FLAGS(ranges_tmp[i]);
         }
 
         for (size_t i = 0; i < param_count; i++) 
         {
             bind_params_tmp[i] = *params[range_count + i];
-            bind_params_tmp[i].xltype &= ~xlbitDLLFree;
+            XLOPER12_CLEAR_OWNER_FLAGS(bind_params_tmp[i]);
         }
     }
 
@@ -444,32 +443,11 @@ static int bind_params(
 }
 
 /*
- * Execute one or more SQL statements and return the result of the
- * final statement as an Excel range.
+ * Execute initialization and main SQL, returning the final result as an
+ * add-in-owned Excel value.
  *
- * Initialization SQL, when supplied, is executed before the main
- * SQL statement.
- *
- * When multiple statements are supplied, all statements are executed
- * sequentially, but only the result set produced by the final
- * statement is returned.
- *
- * Parameters:
- *   init_sql Optional initialization SQL.
- *            Typically used to define macros, views, or other
- *            reusable business logic.
- *   sql      SQL text to execute.
- *   ranges   Excel ranges available through xlrange(index).
- *   nranges  Number of elements in ranges.
- *   params   Worksheet function parameters used for binding.
- *   nparams  Number of bind parameters.
- *
- * Returns:
- *   An owned LPXLOPER12 containing either:
- *     - the execution result, or
- *     - an error message.
- *
- * The returned value must be released through xlAutoFree12().
+ * Multiple statements execute sequentially and consume bind parameters
+ * in statement order. Only the final statement result is returned.
  */
 static LPXLOPER12 run_sql_create_range(
 	const wchar_t *db_path,
@@ -616,10 +594,7 @@ static LPXLOPER12 run_sql_create_range(
             goto step_cleanup;
         }
 
-        /*
-        * Advance to the next unbound worksheet parameter.
-        * Each statement consumes only the parameters it binds.
-        */
+        /* Advance past parameters consumed by this statement. */
         nparams -= (size_t)n_bind;
 
         if (n_bind > 0)
@@ -705,6 +680,7 @@ cleanup:
     return result;
 }
 
+/* Release an asynchronous context and all owned values. */
 static void free_async_context(async_context_t *ctx) {
     if (!ctx) return;
     xloper12_free_array(ctx->params, ctx->nparams);
@@ -716,10 +692,8 @@ static void free_async_context(async_context_t *ctx) {
 }
 
 /*
- * Background worker for asynchronous worksheet functions.
- *
- * Executes the request, returns the result through Excel's
- * asynchronous callback, and releases all owned resources.
+ * Execute an asynchronous request, return its result to Excel,
+ * and release the worker context.
  */
 static unsigned WINAPI run_sql_worker(LPVOID lpParam)
 {
@@ -857,6 +831,7 @@ static void exec_async(
     ctx->nranges = nranges;
 
 fire_thread:
+    /* Start a detached worker tracked by active_workers. */
 
     if (InterlockedCompareExchange(&unloading, 0, 0))
         goto cleanup;
