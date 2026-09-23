@@ -21,7 +21,7 @@
 typedef const char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_library_version))(void);
 
 /* Database lifecycle */
-typedef duckdb_instance_cache (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_instance_cache))();
+typedef duckdb_instance_cache (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_instance_cache))(void);
 typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_or_create_from_cache))(
 	duckdb_instance_cache instance_cache,
 	const char *path,
@@ -324,7 +324,7 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_function_set_error))(
 );
 
 /* Scalar function API */
-typedef duckdb_scalar_function (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_scalar_function))();
+typedef duckdb_scalar_function (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_scalar_function))(void);
 typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_scalar_function_set_name))(
     duckdb_scalar_function scalar_function,
     const char *name
@@ -529,7 +529,7 @@ DUCKDB_SCALAR_API_FUNCTIONS(X) \
 DUCKDB_OTHER_FUNCTIONS(X)
 
 /* Imported DuckDB function pointers */
-#define DECLARE_DUCKDB_FUNCTION_POINTER(duckdb_name, func) extern TO_DUCKDB_FUNCTION_TYPE(duckdb_name) func;
+#define DECLARE_DUCKDB_FUNCTION_POINTER(DUCKDB_NAME, FUNCTION_PTR) extern TO_DUCKDB_FUNCTION_TYPE(DUCKDB_NAME) FUNCTION_PTR;
 DUCKDB_FUNCTION_POINTERS(DECLARE_DUCKDB_FUNCTION_POINTER)
 #undef DECLARE_DUCKDB_FUNCTION_POINTER
 

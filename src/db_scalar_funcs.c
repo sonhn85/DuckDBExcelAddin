@@ -6,40 +6,95 @@
 #include <math.h>
 
 #define ERR_MSG_INTERNAL        "An internal error occurred."
+#define ERR_EXCEL_DATE_TIME     "Excel serial date, time is out of range."
 
 #define XLTYPEINT_TO_DUCKDB_DATE(X, Y) \
     do { \
-        (X)->days = *(Y) - EPOCH_DELTA; \
-    } while(0)
+        int64_t days = (int64_t)*(Y) - (int64_t)EPOCH_DELTA; \
+        if (days < INT32_MIN || days > INT32_MAX) \
+        { \
+            DUCKDB_SCALAR_FUNCTION_SET_ERROR( \
+                info, \
+                ERR_EXCEL_DATE_TIME \
+            ); \
+            return; \
+        } \
+        (X)->days = (int32_t)days; \
+    } while (0)
 
-#define XLTYPEINT_TO_DUCKDB_TIME(X, Y) \
+#define XLTYPEINT_TO_DUCKDB_TIME(X, IGNORE) \
     do { \
         (X)->micros = 0; \
     } while(0)
 
 #define XLTYPEINT_TO_DUCKDB_TIMESTAMP(X, Y) \
     do { \
-        (X)->micros = ((int64_t)(*Y - EPOCH_DELTA)) * US_PER_DAY; \
-    } while(0)
+        int64_t days = (int64_t)*(Y) - (int64_t)EPOCH_DELTA; \
+        if (days < INT64_MIN / US_PER_DAY \
+            || days > INT64_MAX / US_PER_DAY) \
+        { \
+            DUCKDB_SCALAR_FUNCTION_SET_ERROR( \
+                info, \
+                ERR_EXCEL_DATE_TIME \
+            ); \
+            return; \
+        } \
+        (X)->micros = days * US_PER_DAY; \
+    } while (0)
 
 #define XLTYPENUM_TO_DUCKDB_DATE(X, Y) \
     do { \
-        (X)->days = (int32_t)floor(*(Y)) - EPOCH_DELTA; \
-    } while(0)
+        double d = *(Y); \
+        double days = floor(d) - (double)EPOCH_DELTA; \
+        if (!isfinite(days) \
+            || days < (double)INT32_MIN \
+            || days > (double)INT32_MAX) \
+        { \
+            DUCKDB_SCALAR_FUNCTION_SET_ERROR( \
+                info, \
+                ERR_EXCEL_DATE_TIME \
+            ); \
+            return; \
+        } \
+        (X)->days = (int32_t)days; \
+    } while (0)
 
 #define XLTYPENUM_TO_DUCKDB_TIME(X, Y) \
     do { \
-        double day_fraction = *(Y) - floor(*(Y)); \
-        int64_t micros = (int64_t)llround(day_fraction * US_PER_DAY); \
+        double d = *(Y); \
+        if (!isfinite(d)) \
+        { \
+            DUCKDB_SCALAR_FUNCTION_SET_ERROR( \
+                info, \
+                ERR_EXCEL_DATE_TIME \
+            ); \
+            return; \
+        } \
+        double day_fraction = d - floor(d); \
+        int64_t micros = (int64_t)llround( \
+            day_fraction * US_PER_DAY \
+        ); \
         if (micros >= US_PER_DAY) \
             micros = US_PER_DAY - 1; \
         (X)->micros = micros; \
-    } while(0)
+    } while (0)
 
 #define XLTYPENUM_TO_DUCKDB_TIMESTAMP(X, Y) \
     do { \
-        (X)->micros = (int64_t)llround((*(Y) - EPOCH_DELTA) * US_PER_DAY); \
-    } while(0)
+        double micros = \
+            (*(Y) - (double)EPOCH_DELTA) * (double)US_PER_DAY; \
+        if (!isfinite(micros) \
+            || micros < -9223372036854775808.0 \
+            || micros >= 9223372036854775808.0) \
+        { \
+            DUCKDB_SCALAR_FUNCTION_SET_ERROR( \
+                info, \
+                ERR_EXCEL_DATE_TIME \
+            ); \
+            return; \
+        } \
+        (X)->micros = (int64_t)llround(micros); \
+    } while (0)
 
 #define SCAN_FUNCTION_NAME(FUNCTION_NAME, PARAM_C_TYPE) FUNCTION_NAME##_with_##PARAM_C_TYPE
 
