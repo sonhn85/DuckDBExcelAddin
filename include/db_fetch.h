@@ -6,17 +6,17 @@
 #include "XLCALL.H"
 #include "duckdb.h"
 
-/* Linked-list node containing a DuckDB result chunk */
+/* Linked-list node containing a DuckDB result chunk. */
 typedef struct chunk_node 
 {
-    duckdb_data_chunk chunk;    /* Owned */
-    void **vectors;             /* Pointer array owned, vectors borrowed from chunk */
-    uint64_t **valid_masks;     /* Pointer array owned, masks borrowed from chunk */
+    duckdb_data_chunk chunk;    /* Owned by this node. */
+    void **vectors;             /* Owned array of chunk-borrowed pointers. */
+    uint64_t **valid_masks;     /* Owned array of chunk-borrowed masks. */
     struct chunk_node *next;
     idx_t nrows;                /* Number of rows in this chunk */
 } chunk_node;
 
-/* Materialized DuckDB result represented as a chunk list */
+/* Materialized DuckDB result stored as a linked list of chunks. */
 typedef struct chunk_list 
 {
     chunk_node *head;
@@ -24,7 +24,7 @@ typedef struct chunk_list
     idx_t nrows;                /* Total row count */
     idx_t ncols;                /* Column count */
     idx_t nchunks;              /* Number of chunks */
-    const char **col_names;     /* Pointer array owned, strings borrowed from duckdb_result */
+    const char **col_names;     /* Owned array of result-borrowed names. */
     duckdb_type *col_types;     /* Owned */
     duckdb_type *base_types;    /* Owned (DECIMAL base types) */
     uint8_t *dec_scales;        /* Owned (DECIMAL scales) */
@@ -33,19 +33,23 @@ typedef struct chunk_list
 /*
  * Materialize all chunks from a DuckDB result.
  *
- * On success, chunklist owns all allocated resources and must be
- * released with free_and_reset_chunk_list().
+ * chunklist must be zero-initialized before its first use.
+ * result must remain valid until chunks_to_range() completes because
+ * column names are borrowed from the result.
  *
- * Returns:
- *      1 on success.
- *      0 on failure.
+ * On success, release chunklist with free_and_reset_chunk_list().
+ *
+ * Returns 1 on success and 0 on failure.
  */
 int fetch_chunks(duckdb_result *pqresult, chunk_list *chunklist, char *errmsg, size_t buf_size);
 
-/* Release all memory owned by a chunk list and reset its state */
+/* Release all owned resources and reset the chunk list. */
 void free_and_reset_chunk_list(chunk_list *chunklist);
 
-/* Convert a materialized result set to an Excel xltypeMulti range. */
+/*
+ * Convert a materialized result to an add-in-owned Excel range.
+ * The returned value is released through xlAutoFree12().
+ */
 LPXLOPER12 chunks_to_range(chunk_list *chunklist);
 
 #endif /* DB_FETCH_H */
