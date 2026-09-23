@@ -32,6 +32,8 @@
 /* Comma-separated parameter help text. */
 #define HELP_TEXT_NO_INIT L"statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
 #define HELP_TEXT_WITH_INIT L"statements,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_ATTACH_NO_INIT L"database,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_ATTACH_WITH_INIT L"database,initialization statements,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
 /* Complete Excel registration type string. */
 #define TYPE_STRING(PREFIX, SUFFIX) PREFIX WORKSHEET_PARAM_STRING SUFFIX
 
@@ -51,10 +53,10 @@ X(exec_async_no_init,   L"DUCKDB.EXEC.ASYNC",  TYPE_STRING(L">XD%", L"$"),   HEL
 X(addin_info,           L"DUCKDB.INFO",        L"Q",                         L"",                 FUNCTION_CATEGORY) \
 X(exec_sync_with_init,  L"DUCKDB.EXECX",       TYPE_STRING(L"QD%D%", L"$"),  HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY) \
 X(exec_async_with_init, L"DUCKDB.EXECX.ASYNC", TYPE_STRING(L">XD%D%", L"$"), HELP_TEXT_WITH_INIT, FUNCTION_CATEGORY) \
-X(attach_and_exec_sync_no_init,    L"DUCKDB.EXECA",        TYPE_STRING(L"QD%D%", L"$"),    HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
-X(attach_and_exec_async_no_init,   L"DUCKDB.EXECA.ASYNC",  TYPE_STRING(L">XD%D%", L"$"),   HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
-X(attach_and_exec_sync_with_init,  L"DUCKDB.EXECAX",       TYPE_STRING(L"QD%D%D%", L"$"),  HELP_TEXT_NO_INIT, FUNCTION_CATEGORY) \
-X(attach_and_exec_async_with_init, L"DUCKDB.EXECAX.ASYNC", TYPE_STRING(L">XD%D%D%", L"$"), HELP_TEXT_NO_INIT, FUNCTION_CATEGORY)
+X(attach_and_exec_sync_no_init,    L"DUCKDB.EXECA",        TYPE_STRING(L"QD%D%", L"$"),    HELP_TEXT_ATTACH_NO_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_async_no_init,   L"DUCKDB.EXECA.ASYNC",  TYPE_STRING(L">XD%D%", L"$"),   HELP_TEXT_ATTACH_NO_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_sync_with_init,  L"DUCKDB.EXECAX",       TYPE_STRING(L"QD%D%D%", L"$"),  HELP_TEXT_ATTACH_WITH_INIT, FUNCTION_CATEGORY) \
+X(attach_and_exec_async_with_init, L"DUCKDB.EXECAX.ASYNC", TYPE_STRING(L">XD%D%D%", L"$"), HELP_TEXT_ATTACH_WITH_INIT, FUNCTION_CATEGORY)
 
 #ifdef __cplusplus
 extern "C" {
@@ -107,7 +109,7 @@ DLLEXPORT void WINAPI exec_async_no_init(
  * Retrieve information about the add-in version and
  * runtime environment.
  */
-DLLEXPORT LPXLOPER12 addin_info(void);
+DLLEXPORT LPXLOPER12 WINAPI addin_info(void);
 
 /*
  * Execute SQL statements synchronously.
