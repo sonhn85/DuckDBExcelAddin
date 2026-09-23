@@ -25,6 +25,9 @@
 #define ERR_MSG_XLRANGE_VARCHAR             "Failed to convert value to VARCHAR."
 #define ERR_MSG_XLRANGE_BOOL	            "Failed to convert value to BOOLEAN."
 
+#define GENERATED_COLNAME_SIZE 				30
+#define SUFFIX_LEN							20
+
 typedef struct colname_hash_t	/* hash table to store column name */
 {
     char *name;             	/* key */
@@ -581,11 +584,7 @@ static int get_column_names
 		if (XLOPER12_TYPE(str_cell) != xltypeNil)
 			Excel12f(xlFree, NULL, 1, &str_cell);
 
-		for (size_t j = 0; j < i; j++)
-		{
-			free(colnames[j]);
-			colnames[j] = NULL;
-		}
+		/* Partially initialized entries are cleaned up by xlrange_bind(). */
 		
 		goto free_hash;
 	}
@@ -1027,12 +1026,7 @@ static int infer_types
 		continue;
 	
 	fail:
-	
-		for (size_t j = 0; j < i; j++)
-		{
-			DUCKDB_DESTROY_LOGICAL_TYPE(&logical_types[j]);
-			logical_types[j] = NULL;
-		}
+		/* Partially initialized entries are cleaned up by xlrange_bind(). */
 		
 		return 0;
 	}
@@ -1106,9 +1100,9 @@ static void xlrange_bind(duckdb_bind_info info)
     if (nsample == 0 || nsample > ndatarows)
         nsample = ndatarows;
 
-    colnames = malloc(ncols*sizeof(*colnames));
+    colnames = calloc(ncols, sizeof(*colnames));				/* Initialize members to NULL */
     types = malloc(ncols*sizeof(*types));
-    logical_types = malloc(ncols*sizeof(*logical_types));
+    logical_types = calloc(ncols, sizeof(*logical_types));	/* Initialize members to NULL */
     if (!types || !logical_types || !colnames)
     {
         SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
@@ -1162,7 +1156,10 @@ static void xlrange_bind(duckdb_bind_info info)
 	bind_data->ignore_errors = ignore_errors;
 
 	for (size_t i = 0; i < ncols; i++)
+	{
 		DUCKDB_BIND_ADD_RESULT_COLUMN(info, bind_data->colnames[i], logical_types[i]);
+		logical_types[i] = NULL;
+	}
 
     DUCKDB_BIND_SET_BIND_DATA(info, bind_data, free_bind_data);
     bind_data = NULL;
@@ -1181,9 +1178,24 @@ fail:
 cleanup:
 
     free_bind_data(bind_data);
-    free(colnames);
-    free(types);
-    free(logical_types);
+	free(types);
+
+	if (colnames)
+	{
+		for (size_t i = 0; i < ncols; i++)
+			free(colnames[i]);
+
+		free(colnames);
+	}
+
+	if (logical_types)
+	{
+		for (size_t i = 0; i < ncols; i++)
+			DUCKDB_DESTROY_LOGICAL_TYPE(&logical_types[i]);
+
+		free(logical_types);
+	}
+    
 }
 
 static void free_scan_state(void *p)
