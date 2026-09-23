@@ -71,12 +71,11 @@ static void xlUnload(void)
 {
     XLOPER12 xllPath;
 
-    if (Excel12f(xlGetName, &xllPath, 0) != xlretSuccess)
-        return;
-    
-    unreg_funcs(&xllPath);
-
-    Excel12f(xlFree, 0, 1, &xllPath);
+    if (Excel12f(xlGetName, &xllPath, 0) == xlretSuccess)
+    {
+        unreg_funcs(&xllPath);
+        Excel12f(xlFree, NULL, 1, &xllPath);
+    }
 
     if (g_duckdb_dll)
     {
@@ -146,6 +145,7 @@ init_db_cache:
 		goto unload;
 	}
 
+    InterlockedExchange(&unloading, 0);
 	result = 1;
 	goto cleanup;
 
@@ -518,11 +518,16 @@ static LPXLOPER12 run_sql_create_range(
             goto cleanup;
         }
 	} else {
-        char *msg;
+        char *msg = NULL;
 		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
         {
-            result = make_string_cell(msg);
-            DUCKDB_FREE(msg);
+            result = make_string_cell(
+                msg ? msg : ERR_MSG_DUCKDB_INIT_FAILURE
+            );
+
+            if (msg)
+                DUCKDB_FREE(msg);
+
             goto cleanup;
         }
 	}
@@ -617,7 +622,8 @@ static LPXLOPER12 run_sql_create_range(
         */
         nparams -= (size_t)n_bind;
 
-        params += n_bind;
+        if (n_bind > 0)
+            params += n_bind;
 
         duckdb_state state = DUCKDB_EXECUTE_PREPARED(prep_stmt, &qresult);
         has_qresult = true;
@@ -737,7 +743,7 @@ static unsigned WINAPI run_sql_worker(LPVOID lpParam)
             ctx->nparams
         );
 
-    if (Excel12f(
+    if (xl_result && Excel12f(
         xlAsyncReturn,
         NULL,
         2,
@@ -882,13 +888,17 @@ fire_thread:
         
         LPXLOPER12 err = make_string_cell(ERR_MSG_INTERNAL);
 
-        Excel12f(
-            xlAsyncReturn,
-            NULL,
-            2,
-            ctx->asyncHandle,
-            err
-        );
+        if (err
+            && Excel12f(
+                xlAsyncReturn,
+                NULL,
+                2,
+                ctx->asyncHandle,
+                err
+            ) != xlretSuccess)
+        {
+            xloper12_free(err);
+        }
 
         goto cleanup;
     }
@@ -939,7 +949,7 @@ static LPXLOPER12 exec_sync(
 }
 
 /* Return add-in and loaded DuckDB version information. */
-LPXLOPER12 addin_info(void)
+LPXLOPER12 WINAPI addin_info(void)
 {
     char buf[XLSTR_MAX_LEN];
 
