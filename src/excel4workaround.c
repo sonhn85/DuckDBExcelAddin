@@ -1,3 +1,8 @@
+/*
+ * Excel4 API stubs required by the Excel XLL SDK framework.
+ * This add-in uses only the Excel12 API.
+ */
+
 #include <windows.h>
 #include "xlcall.h"
 
