@@ -30,10 +30,10 @@
 /* Type and name pair of parameters (comma-separated) */
 #define WORKSHEET_PARAM_AND_TYPE_LIST WORKSHEET_PARAMS(WORKSHEET_PARAM_AND_TYPE_SEPARATED, WORKSHEET_PARAM_AND_TYPE)
 /* Comma-separated parameter help text. */
-#define HELP_TEXT_NO_INIT L"statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
-#define HELP_TEXT_WITH_INIT L"statements,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
-#define HELP_TEXT_ATTACH_NO_INIT L"database,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
-#define HELP_TEXT_ATTACH_WITH_INIT L"database,initialization statements,statements," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_NO_INIT L"stmts," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_WITH_INIT L"init_stmts,stmts," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_ATTACH_NO_INIT L"db_file,stmts," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
+#define HELP_TEXT_ATTACH_WITH_INIT L"db_file,init_stmts,stmts," WORKSHEET_PARAMS(WORKSHEET_PARAM_HELP_SEPARATED, WORKSHEET_PARAM_HELP)
 /* Complete Excel registration type string. */
 #define TYPE_STRING(PREFIX, SUFFIX) PREFIX WORKSHEET_PARAM_STRING SUFFIX
 
@@ -73,17 +73,14 @@ DLLEXPORT int WINAPI xlAutoClose(void);
 /* Called when the add-in is removed from Excel. */
 DLLEXPORT int WINAPI xlAutoRemove(void);
 
-/* Release memory previously returned to Excel. */
+/* Release an add-in-owned value returned to Excel. */
 DLLEXPORT void WINAPI xlAutoFree12(LPXLOPER12 pxFree);
 
-/* Provide the Add-In Manager with information */
+/* Return add-in information to the Add-In Manager. */
 DLLEXPORT LPXLOPER12 WINAPI xlAddInManagerInfo12(LPXLOPER12 pxAction);
 
 /*
- * Execute SQL statements synchronously
- *
- * Supports parameter binding.
- *
+ * Execute SQL asynchronously using an in memory database.
  * Returns the statement result as an XLOPER12 value.
  */
 DLLEXPORT LPXLOPER12 WINAPI exec_sync_no_init(
@@ -91,14 +88,7 @@ DLLEXPORT LPXLOPER12 WINAPI exec_sync_no_init(
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Execute SQL statements asynchronously
- *
- * Supports parameter binding.
- *
- * Results are delivered through Excel's asynchronous
- * worksheet function mechanism.
- */
+/* Execute SQL asynchronously using an in memory database. */
 DLLEXPORT void WINAPI exec_async_no_init(
     LPXLOPER12 asyncHandle,
     const wchar_t *sql,
@@ -111,33 +101,14 @@ DLLEXPORT void WINAPI exec_async_no_init(
  */
 DLLEXPORT LPXLOPER12 WINAPI addin_info(void);
 
-/*
- * Execute SQL statements synchronously.
- *
- * An optional initialization SQL script may be executed
- * before the main statement.
- *
- * Supports parameter binding.
- *
- * Returns the statement result as an XLOPER12 value.
- */
+/* Execute initialization and main SQL synchronously using an in memory database. */
 DLLEXPORT LPXLOPER12 WINAPI exec_sync_with_init(
     const wchar_t *init_sql,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Execute SQL statements asynchronously.
- *
- * An optional initialization SQL script may be executed
- * before the main statement.
- *
- * Supports parameter binding.
- *
- * Results are delivered through Excel's asynchronous
- * worksheet function mechanism.
- */
+/* Execute initialization and main SQL asynchronously using an in memory database. */
 DLLEXPORT void WINAPI exec_async_with_init(
     LPXLOPER12 asyncHandle,
     const wchar_t *init_sql,
@@ -145,29 +116,14 @@ DLLEXPORT void WINAPI exec_async_with_init(
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Attach an database file then
- * Execute SQL statements synchronously
- *
- * Supports parameter binding.
- *
- * Returns the statement result as an XLOPER12 value.
- */
+/* Execute SQL synchronously using a DuckDB file as the default database. */
 DLLEXPORT LPXLOPER12 WINAPI attach_and_exec_sync_no_init(
 	const wchar_t *db_path,
     const wchar_t *sql,
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Attach an database file then
- * Execute SQL statements asynchronously
- *
- * Supports parameter binding.
- *
- * Results are delivered through Excel's asynchronous
- * worksheet function mechanism.
- */
+/* Execute SQL asynchronously using a DuckDB file as the default database. */
 DLLEXPORT void WINAPI attach_and_exec_async_no_init(
     LPXLOPER12 asyncHandle,
 	const wchar_t *db_path,
@@ -175,17 +131,7 @@ DLLEXPORT void WINAPI attach_and_exec_async_no_init(
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Attach an database file then
- * Execute SQL statements synchronously.
- *
- * An optional initialization SQL script may be executed
- * before the main statement.
- *
- * Supports parameter binding.
- *
- * Returns the statement result as an XLOPER12 value.
- */
+/* Execute initialization and main SQL synchronously using a DuckDB file. */
 DLLEXPORT LPXLOPER12 WINAPI attach_and_exec_sync_with_init(
 	const wchar_t *db_path,
     const wchar_t *init_sql,
@@ -193,18 +139,7 @@ DLLEXPORT LPXLOPER12 WINAPI attach_and_exec_sync_with_init(
     WORKSHEET_PARAM_AND_TYPE_LIST
 );
 
-/*
- * Attach an database file then
- * Execute SQL statements asynchronously.
- *
- * An optional initialization SQL script may be executed
- * before the main statement.
- *
- * Supports parameter binding.
- *
- * Results are delivered through Excel's asynchronous
- * worksheet function mechanism.
- */
+/* Execute initialization and main SQL asynchronously using a DuckDB file. */
 DLLEXPORT void WINAPI attach_and_exec_async_with_init(
     LPXLOPER12 asyncHandle,
 	const wchar_t *db_path,
