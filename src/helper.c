@@ -19,14 +19,11 @@ int xlstr_to_utf8(char **dest, const wchar_t *src, size_t *n)
     if (n)
         *n = 0;
 
-    /* NULL Excel string */
     if (!src)
         return 1;
 
     char *utf8;
 
-    /* Excel strings are length-prefixed:
-     * src[0] contains the character count (max 32767). */
     int wchar_count = (unsigned short)src[0];
     /* Empty string */
     if (wchar_count == 0)
@@ -77,7 +74,6 @@ int xlstr_to_utf8(char **dest, const wchar_t *src, size_t *n)
         return 0;
     }
 
-    /* Return a null-terminated UTF-8 string */
     utf8[chars_written] = '\0';
 
     if (n)
@@ -112,7 +108,6 @@ int utf8_to_xlstr(wchar_t **dest, const char *src, int n)
         if (!xlstr)
             return 0;
 
-        /* Excel strings are length-prefixed */
         xlstr[0] = 0;
         xlstr[1] = L'\0';
 
@@ -132,7 +127,6 @@ int utf8_to_xlstr(wchar_t **dest, const char *src, int n)
     if (wchar_count <= 0)
         return 0;
 
-    /* Excel strings are limited to XLSTR_MAX_LEN characters */
     int char_only_len = (n == -1) ? wchar_count - 1 : wchar_count;
     if (char_only_len > XLSTR_MAX_LEN)
         return 0;
@@ -160,7 +154,6 @@ int utf8_to_xlstr(wchar_t **dest, const char *src, int n)
     if (n == -1)
         --chars_written;
 
-    /* Store Excel length prefix */
     xlstr[0] = (unsigned short)chars_written;
 
     *dest = xlstr;
@@ -184,7 +177,7 @@ LPXLOPER12 make_string_cell(const char *utf8str)
         return NULL;
     }
 
-    /* To be freed with xlAutoFree12 */
+    /* Excel releases this result through xlAutoFree12(). */
     result->xltype = xltypeStr | xlbitDLLFree; 
     result->val.str = xlstr;
 
@@ -197,7 +190,6 @@ int is_null_or_whitespace_xlstr(const wchar_t *xlstr)
     if (!xlstr)
         return 1;
     
-    // Excel strings are length-prefixed
     size_t n = (unsigned short)xlstr[0];
     for (size_t i = 1; i <= n; i++)
     {
@@ -216,7 +208,7 @@ void xloper12_free_members(LPXLOPER12 pxFree)
     switch (LPXLOPER12_TYPE(pxFree))
     {
         case xltypeMulti:
-            /* Only free memory allocated by this add-in */
+            /* Release nested add-in-owned strings and arrays. */
             if (LPXLOPER12_DLL_FREE(pxFree))
             {
                 LPXLOPER12 cells = pxFree->val.array.lparray;
@@ -240,13 +232,13 @@ void xloper12_free_members(LPXLOPER12 pxFree)
                         }
                     }
                 }
-                /* Free array storage after all elements are released */
+                
                 free(pxFree->val.array.lparray);
             }
             break;
 
         case xltypeStr:
-            /* Only free memory allocated by this add-in */
+            /* Release add-in-owned strings. */
             if (LPXLOPER12_DLL_FREE(pxFree))
                 free(pxFree->val.str);
 
@@ -288,13 +280,14 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
     if (!dst || !src)
         return 0;
 
-    XLOPER12 dst_tmp = {0};    /* Safe default value for rollback */
+    /* Keep temporary state safe for failure cleanup. */
+    XLOPER12 dst_tmp = {0};
 
-    /* Start with a shallow copy of the source value */
+    /* Start with a shallow copy, then replace owned members. */
     dst_tmp = *src;
 
-    /* Clear ownership flag and restore it only after deep-copy succeeds */
-    dst_tmp.xltype &= ~(xlbitDLLFree | xlbitXLFree);
+    /* Remove source ownership flags from the copy. */
+    XLOPER12_CLEAR_OWNER_FLAGS(dst_tmp);
 
     switch (LPXLOPER12_TYPE(src)) 
     {
@@ -305,7 +298,6 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
             if (!ws_src)
                 break;
 
-            /* Excel strings are length-prefixed */
             size_t wchar_count = (unsigned short)ws_src[0]; 
 
             wchar_t *ws_cpy = malloc((wchar_count + 1) * sizeof(*ws_cpy));
@@ -314,8 +306,8 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
 
             wmemcpy(ws_cpy, ws_src, (wchar_count + 1));
 
-            /* To be freed with xlAutoFree12 */
-            dst_tmp.xltype |= xlbitDLLFree;
+            /* Excel releases this result through xlAutoFree12(). */
+            XLOPER12_SET_DLL_FREE(dst_tmp);
             dst_tmp.val.str = ws_cpy;
 
             break;
@@ -332,11 +324,10 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
             }
 
             LPXLOPER12 src_cells = src->val.array.lparray;
-            /* Non-empty array requires a valid backing store */
             if (!src_cells)
                 return 0;
 
-            /* Initialize elements to safe defaults for rollback */
+            /* Zero-initialize elements for partial-failure cleanup. */
             LPXLOPER12 dst_cells = calloc(n, sizeof(*dst_cells));
             if (!dst_cells)
                 return 0;
@@ -363,20 +354,20 @@ int xloper12_deep_copy(XLOPER12 *dst, const XLOPER12 *src)
                     case xltypeMissing:
                     case xltypeNil:
                     case xltypeErr:
-                        /* Shallow copy is sufficient */
+                        /* Primitive values require no deep copy. */
                         dst_cells[i] = src_cells[i];
-                        dst_cells[i].xltype &= ~(xlbitDLLFree | xlbitXLFree);
+                        XLOPER12_CLEAR_OWNER_FLAGS(dst_cells[i]);
                         break;
 
                     default:
-                        /* Unsupported type. Roll back and fail */
+                        /* Release partial results for unsupported types. */
                         xloper12_free_array(dst_cells, i);
                         return 0;
                 }
             }
 
-            /* To be freed with xlAutoFree12 */
-            dst_tmp.xltype |= xlbitDLLFree;
+            /* Excel releases this result through xlAutoFree12(). */
+            XLOPER12_SET_DLL_FREE(dst_tmp);
             dst_tmp.val.array.lparray = dst_cells;
 
             break;
