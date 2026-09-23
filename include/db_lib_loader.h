@@ -1,8 +1,8 @@
 /*
- * Dynamic DuckDB loader.
+ * Runtime DuckDB loader.
  *
- * Defines function pointer types and imported function declarations
- * used to load DuckDB APIs at runtime.
+ * Declares the function-pointer types and dynamically resolved APIs
+ * used by the add-in.
  */
 
 #ifndef DB_LIB_LOADER_H
@@ -13,8 +13,7 @@
 #include <stdint.h>
 #include "duckdb.h"
 
-/* Function pointer type name generator.
-   Example: duckdb_open -> duckdb_open_t */
+/* Generate a function-pointer type name, for example duckdb_open_t. */
 #define TO_DUCKDB_FUNCTION_TYPE(x) x##_t
 
 /* Version */
@@ -536,11 +535,10 @@ DUCKDB_FUNCTION_POINTERS(DECLARE_DUCKDB_FUNCTION_POINTER)
 /*
  * Load the DuckDB DLL and resolve all required APIs.
  *
- * Returns the loaded module handle on success.
- * Returns NULL on failure.
+ * caller_path is a length-prefixed Excel string.
+ * The caller owns the returned module and must release it with FreeLibrary().
  *
- * The caller owns the returned module handle and
- * must release it with FreeLibrary().
+ * Returns the module handle on success or NULL on failure.
  */
 HMODULE load_duckdb(
     const HWND hwnd,
