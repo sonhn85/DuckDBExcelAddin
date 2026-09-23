@@ -28,10 +28,11 @@
 #define GENERATED_COLNAME_SIZE 				30
 #define SUFFIX_LEN							20
 
-typedef struct colname_hash_t	/* hash table to store column name */
+/* Tracks column-name occurrences for duplicate renaming. */
+typedef struct colname_hash_t
 {
     char *name;             	/* key */
-    size_t count;           	/* occurrences seen */
+    size_t count;           	/* occurrences */
     UT_hash_handle hh;
 } colname_hash_t;
 
@@ -65,13 +66,7 @@ typedef struct xlrange_scan_state_t
 	bool			ignore_errors;
 } xlrange_scan_state_t;
 
-/*
- * Check for name duplication using hash table
- * Duplicate names are prefixed: name, name_1, name_2 ...
- * Return:
- * 		fixed name: success
- *      NULL:		error
- */
+/* Return an allocated unique name using numeric suffixes. */
 static inline char *make_unique_name
 (
     colname_hash_t 	**hash,
@@ -156,7 +151,7 @@ static void format_error_message
 					"Error %s: Column %s, row %lld: %s",
 					action,
 					colname,
-					row_idx + 2, // +1 for 0-based index, +1 for header row
+					row_idx + 2,	/* +1 for 0-based index, +1 for header row */
 					msg
 				);
 			else
@@ -178,7 +173,7 @@ static void format_error_message
 					"Error %s: Column %lld, row %lld: %s",
 					action,
 					col_idx + 1,
-					row_idx + 2, // +1 for 0-based index, +1 for header row
+					row_idx + 2,	/* +1 for 0-based index, +1 for header row */
 					msg
 				);
 			else
@@ -201,7 +196,7 @@ static void format_error_message
                 "Error %s: Column #%lld, row %lld: %s",
                 action,
                 col_idx + 1,
-                row_idx + 1, // +1 for 0-based index 
+                row_idx + 1, 	/* +1 for 0-based index */
                 msg
             );
         else
@@ -246,7 +241,7 @@ static void free_bind_data(void *p)
     free(bind_data);
 }
 
-/* Check if a double is whole number */
+/* Return true for INT32-compatible whole numbers. */
 static inline bool is_whole_number(double num)
 {
 	double n = round(num);
@@ -269,10 +264,8 @@ static inline bool is_whole_number(double num)
     )
 
 /*
- * Helper to get integer positional parameter
- * Return 1: success
- *        0: missing
- *        -1: error
+ * Read a required INTEGER positional parameter.
+ * Return 1 on success, 0 on null, and -1 on error.
  */
 static int get_int_param
 (
@@ -299,7 +292,8 @@ static int get_int_param
         goto cleanup;
     }
 
-	duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);  /* owned by val */
+	/* Owned by val. */
+	duckdb_logical_type lt = DUCKDB_GET_VALUE_TYPE(val);
     if(!lt)
     {
         SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
@@ -323,10 +317,8 @@ cleanup:
 }
 
 /*
- * Helper to get name parameter
- * Return 1: success
- *        0: missing
- *        -1: error
+ * Generate readers for optional named parameters.
+ * Return 1 on success, 0 if omitted, and -1 on error.
  */
 #define DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(TYPE, TYPE_ENUM, GETTER)				\
 static int get_##TYPE##_named_param													\
@@ -375,11 +367,10 @@ static int get_##TYPE##_named_param													\
 	return ok;																		\
 }
 
-/* Generate get_int_named_param and get_bool_named_param functions */
 DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(int,  DUCKDB_TYPE_INTEGER, DUCKDB_GET_INT32)
 DEFINE_GENERATE_GET_NAMED_PARAM_FUNC(bool, DUCKDB_TYPE_BOOLEAN, DUCKDB_GET_BOOL)
 
-/* Parse parameters from xlrange() call */
+/* Parse and validate xlrange() parameters. */
 static int parse_params
 (
 	duckdb_bind_info 	info,
@@ -394,7 +385,7 @@ static int parse_params
 	size_t				err_buf_size
 )
 {
-    /* xlrange(index) -> one required positional parameter */
+    /* xlrange(index) */
 	int32_t range_idx_tmp;
 	
     if (DUCKDB_BIND_GET_PARAMETER_COUNT(info) != 1)
@@ -453,6 +444,11 @@ static int parse_params
 	return 1;
 }
 
+/*
+ * Read or generate UTF-8 column names.
+ *
+ * Results must be freed by caller.
+ */
 static int get_column_names
 (
 	LPXLOPER12	cell,
@@ -539,7 +535,7 @@ static int get_column_names
 					goto name_error;
 				}
 
-				/* Fix duplicates */
+				/* Rename duplicate columns in non-strict mode. */
 				char *name = colname;
 				colname = make_unique_name(&hash, name);
 				free(name);
@@ -583,8 +579,6 @@ static int get_column_names
 
 		if (XLOPER12_TYPE(str_cell) != xltypeNil)
 			Excel12f(xlFree, NULL, 1, &str_cell);
-
-		/* Partially initialized entries are cleaned up by xlrange_bind(). */
 		
 		goto free_hash;
 	}
@@ -606,14 +600,8 @@ free_hash:
 }
 
 /*
- * Trim leading and trailing whitespace from a string.
- * - Returns a pointer to the first non-space character in the original buffer.
- * - Sets *out_len to the length of the trimmed substring (excluding the null terminator).
- * - If the string contains only spaces, returns a pointer to the terminating '\0' and sets *out_len = 0.
- * - Note: The original string buffer is not reallocated or freed by this function.
- * - Caller is responsible for freeing the original buffer if it was dynamically allocated.
- * - Important: This function does not insert or modify characters; it only adjusts the returned pointer
- *   and length to represent the trimmed view of the string.
+ * Return a non-owning trimmed view of s.
+ * out_len receives the trimmed length.
  */
 static inline char *trim_whitespace(char *s, size_t *out_len)
 {
@@ -636,16 +624,7 @@ static inline char *trim_whitespace(char *s, size_t *out_len)
     return s;
 }
 
-/*
- * Infer DuckDB type from a string cell value.
- * - Trims whitespace and checks if the string represents:
- *   • INTEGER: whole number within INT32 range
- *   • DOUBLE: parsed fully by strtod, finite, promoted to INTEGER if whole number
- *   • BOOLEAN: matches common forms ("Y/N", "y/n" "T/F", "t/f", "YES/NO" "yes/no", "TRUE/FALSE", "true/false")
- *   • NULL: "NULL", "N/A", "null", "n/a"
- * - Falls back to VARCHAR if no match.
- * Return: DUCKDB_TYPE_INTEGER, DUCKDB_TYPE_DOUBLE, DUCKDB_TYPE_BOOLEAN, or DUCKDB_TYPE_VARCHAR.
- */
+/* Infer the Excel type represented by a string value. */
 static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 {
 	char *s = NULL;
@@ -771,15 +750,9 @@ cleanup:
 }
 
 /*
- * Inference strategy:
-*  1. Scan for the first non-null value in the column and
-*     use its type as the candidate type. Empty strings,
-*     "N/A", and "NULL" are treated as nulls.
- * 2. Whole-number numeric cells are inferred as INTEGER
- *    when all sampled values fit within the INT32 range.
- * 3. Sample the remaining rows up to the configured sample limit.
- * 4. If incompatible types are encountered, promote the 
- *    column type to DOUBLE or VARCHAR.
+ * Infer each column type from sampled data.
+ *
+ * Results must be freed by caller.
  */
 static int infer_types
 (
@@ -803,7 +776,7 @@ static int infer_types
         {
             LPXLOPER12 cell = has_header ? data + ncols : data;
 
-            /* Sample first non-null value */
+            /* Find the first non-null type candidate. */
             size_t sample_idx;
 
             for (sample_idx = 0; sample_idx < nsample; sample_idx++, cell += ncols)
@@ -836,7 +809,7 @@ static int infer_types
                 }
             }
 
-            /* Sample remaining rows */
+            /* Reconcile the candidate with remaining sampled values. */
             if (xltype != xltypeStr)
             {
                 cell += ncols;
@@ -988,7 +961,7 @@ static int infer_types
             }
         }
 
-        // Map xltype to duckdb type
+        /* Map the inferred Excel type to a DuckDB type. */
         duckdb_type type;
     
         switch (xltype)
@@ -1024,7 +997,6 @@ static int infer_types
 		continue;
 	
 	fail:
-		/* Partially initialized entries are cleaned up by xlrange_bind(). */
 		
 		return 0;
 	}
@@ -1098,9 +1070,10 @@ static void xlrange_bind(duckdb_bind_info info)
     if (nsample == 0 || nsample > ndatarows)
         nsample = ndatarows;
 
-    colnames = calloc(ncols, sizeof(*colnames));				/* Initialize members to NULL */
     types = malloc(ncols*sizeof(*types));
-    logical_types = calloc(ncols, sizeof(*logical_types));		/* Initialize members to NULL */
+	/* Zero-initialize entries for partial-failure cleanup. */
+	colnames = calloc(ncols, sizeof(*colnames));
+    logical_types = calloc(ncols, sizeof(*logical_types));
     if (!types || !logical_types || !colnames)
     {
         SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
@@ -1148,18 +1121,19 @@ static void xlrange_bind(duckdb_bind_info info)
     bind_data->ncols = ncols;
     bind_data->nrows = ndatarows;
     bind_data->types = types;
+	/* Ownership transfer to bind_data */
     types = NULL;
     bind_data->colnames = colnames;
+	/* Ownership transfer to bind_data */
     colnames = NULL;
 	bind_data->ignore_errors = ignore_errors;
 
 	for (size_t i = 0; i < ncols; i++)
-	{
+		/* logical_types members are copied. */
 		DUCKDB_BIND_ADD_RESULT_COLUMN(info, bind_data->colnames[i], logical_types[i]);
-		logical_types[i] = NULL;
-	}
 
     DUCKDB_BIND_SET_BIND_DATA(info, bind_data, free_bind_data);
+	/* Ownership transfer to table function */
     bind_data = NULL;
 
     DUCKDB_BIND_SET_CARDINALITY(info, (idx_t)ndatarows, true);
@@ -1260,7 +1234,7 @@ static void xlrange_init(duckdb_init_info info)
 
     memcpy(types, bind_data->types, ncols*sizeof(*types));
 
-    // Copy column names
+    /* Copy column names into scan-owned storage. */
     for (size_t i = 0; i < ncols; i++)
     {
 		char *copy = _strdup(bind_data->colnames[i]);
@@ -1311,13 +1285,10 @@ cleanup:
     free_scan_state(state);
 }
 
-/* 
- * Conversion helpers for Excel LPXLOPER12 cells.
- * Provide safe parsing into int32_t, double, bool, or DuckDB varchar.
- * Return codes: 1 = valid conversion, 0 = empty/missing, -1 = incompatible/error.
- * String inputs are converted to UTF‑8, trimmed, and parsed appropriately.
+/*
+ * Convert Excel cells to inferred DuckDB types.
+ * Returns 1 for a value, 0 for NULL, and -1 for incompatibility.
  */
-
 static inline int cell_to_integer(
     LPXLOPER12 	cell,
 	int32_t	 	*out
@@ -2017,7 +1988,7 @@ static void xlrange_scan
 			}
 			
         sqlnull:
-
+			/* Write empty or ignored incompatible values as SQL NULL. */
             DUCKDB_VECTOR_ENSURE_VALIDITY_WRITABLE(vec);
 
             DUCKDB_VALIDITY_SET_ROW_INVALID(
@@ -2068,7 +2039,7 @@ int register_xlrange_func
     if (!table_func)
         goto fail;
 
-    // Shared context for all xlrange() instances in the query
+    /* Shared borrowed context for xlrange() calls. */
     xlrange_context_t *ctx = malloc(sizeof(*ctx));
     if (!ctx)
         goto fail;
@@ -2079,9 +2050,7 @@ int register_xlrange_func
     DUCKDB_TABLE_FUNCTION_SET_EXTRA_INFO(table_func, ctx, free);
 	ctx = NULL;
 
-    // xlrange(index), xlrange(..., sample = n)
     int_type = DUCKDB_CREATE_LOGICAL_TYPE(DUCKDB_TYPE_INTEGER);
-    // xlrange(..., all_varchar = true)
     bool_type = DUCKDB_CREATE_LOGICAL_TYPE(DUCKDB_TYPE_BOOLEAN);
     if (!int_type || !bool_type)
         goto fail;

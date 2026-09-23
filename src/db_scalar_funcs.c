@@ -6,7 +6,9 @@
 #include <math.h>
 
 #define ERR_MSG_INTERNAL        "An internal error occurred."
-#define ERR_EXCEL_DATE_TIME     "Excel serial date, time is out of range."
+#define ERR_EXCEL_DATE_TIME     "Excel serial date or time is out of range."
+
+/* Convert Excel serial values to DuckDB temporal values. */
 
 #define XLTYPEINT_TO_DUCKDB_DATE(X, Y) \
     do { \
@@ -99,9 +101,8 @@
 #define SCAN_FUNCTION_NAME(FUNCTION_NAME, PARAM_C_TYPE) FUNCTION_NAME##_with_##PARAM_C_TYPE
 
 /*
- * DuckDB stores validity information as a bitmap.
- * Each uint64_t represents the validity of up to 64 rows.
- * Process one bitmap word at a time for efficient NULL propagation.
+ * Generate a vectorized conversion function.
+ * Input NULLs are propagated to the output validity mask.
  */
 #define DEFINE_SCAN_FUNCTION(FUNCTION_NAME, RESULT_TYPE, VECTOR_TYPE, PARAM_C_TYPE, CONVERTER)  \
 static void SCAN_FUNCTION_NAME(FUNCTION_NAME, PARAM_C_TYPE)(                                    \
@@ -178,8 +179,13 @@ static void SCAN_FUNCTION_NAME(FUNCTION_NAME, PARAM_C_TYPE)(                    
 DEFINE_SCAN_FUNCTION(FUNCTION_NAME, RESULT_TYPE, VECTOR_TYPE, PARAM_C_TYPE_1, CONVERTER_1) \
 DEFINE_SCAN_FUNCTION(FUNCTION_NAME, RESULT_TYPE, VECTOR_TYPE, PARAM_C_TYPE_2, CONVERTER_2)
 
+/* Generate scan functions for DOUBLE and INTEGER inputs. */
 SCALAR_FUNCTIONS(DEFINE_SCAN_FUNCTION_ALL_PARAM_TYPES)
 
+/*
+ * Register both input overloads as one DuckDB scalar function set.
+ * On success, ownership of the function set is returned to the caller.
+ */
 #define DEFINE_REGISTER_FUNCTION(FUNCTION_NAME, RESULT_TYPE, IGNORE_1, PARAM_TYPE_1, PARAM_C_TYPE_1, IGNORE_2, PARAM_TYPE_2, PARAM_C_TYPE_2, IGNORE_3)  \
 REGISTER_FUNCTION_SIGNATURE(FUNCTION_NAME)                                                                  \
 {                                                                                                           \
