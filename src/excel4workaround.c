@@ -1,5 +1,5 @@
 /*
- * Excel4 API stubs required by the Excel XLL SDK framework.
+ * Excel4 API stubs required by the Excel XLL SDK FRAMEWRK.
  * This add-in uses only the Excel12 API.
  */
 
