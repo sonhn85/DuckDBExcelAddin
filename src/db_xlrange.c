@@ -641,7 +641,7 @@ static inline char *trim_whitespace(char *s, size_t *out_len)
  * - Trims whitespace and checks if the string represents:
  *   • INTEGER: whole number within INT32 range
  *   • DOUBLE: parsed fully by strtod, finite, promoted to INTEGER if whole number
- *   • BOOLEAN: matches common forms ("Y/N", "y/n" "T/F", "t/f", "YES/NO" "yes/no", "ON/OFF", "on/off", "TRUE/FALSE", "true/false")
+ *   • BOOLEAN: matches common forms ("Y/N", "y/n" "T/F", "t/f", "YES/NO" "yes/no", "TRUE/FALSE", "true/false")
  *   • NULL: "NULL", "N/A", "null", "n/a"
  * - Falls back to VARCHAR if no match.
  * Return: DUCKDB_TYPE_INTEGER, DUCKDB_TYPE_DOUBLE, DUCKDB_TYPE_BOOLEAN, or DUCKDB_TYPE_VARCHAR.
@@ -712,8 +712,7 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 			break;
 
 		case 2:
-			if (strncasecmp(trimmed, "no", n) == 0
-				|| strncasecmp(trimmed, "on", n) == 0)
+			if (strncasecmp(trimmed, "no", n) == 0)
 			{
 				type = xltypeBool;
 				goto cleanup;
@@ -722,8 +721,7 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 			break;
 
 		case 3:
-			if (strncasecmp(trimmed, "yes", n) == 0
-				|| strncasecmp(trimmed, "off", n) == 0)
+			if (strncasecmp(trimmed, "yes", n) == 0)
 			{
 				type = xltypeBool;
 				goto cleanup;
@@ -1102,7 +1100,7 @@ static void xlrange_bind(duckdb_bind_info info)
 
     colnames = calloc(ncols, sizeof(*colnames));				/* Initialize members to NULL */
     types = malloc(ncols*sizeof(*types));
-    logical_types = calloc(ncols, sizeof(*logical_types));	/* Initialize members to NULL */
+    logical_types = calloc(ncols, sizeof(*logical_types));		/* Initialize members to NULL */
     if (!types || !logical_types || !colnames)
     {
         SET_BIND_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
@@ -1655,12 +1653,6 @@ static inline int cell_to_bool
 						res = 1;
 						break;
 					}
-					else if (strncasecmp(trimmed, "on", n) == 0)
-					{
-						*out = true;
-						res = 1;
-						break;
-					}
 					
 					res = -1;
 					break;
@@ -1670,12 +1662,6 @@ static inline int cell_to_bool
 					if (strncasecmp(trimmed, "yes", n) == 0)
 					{
 						*out = true;
-						res = 1;
-						break;
-					}
-					else if (strncasecmp(trimmed, "off", n) == 0)
-					{
-						*out = false;
 						res = 1;
 						break;
 					}
