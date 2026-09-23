@@ -5,10 +5,11 @@
 #include "helper.h"
 #include "config.h"
 
+/* Define dynamically resolved DuckDB API pointers. */
 #define DEFINE_DUCKDB_FUNCTION_POINTER(DUCKDB_NAME, FUNCTION_PTR) TO_DUCKDB_FUNCTION_TYPE(DUCKDB_NAME) FUNCTION_PTR = NULL;
 DUCKDB_FUNCTION_POINTERS(DEFINE_DUCKDB_FUNCTION_POINTER)
 
-/* Resolve all required APIs. On failure, report a version mismatch. */
+/* Resolve required DuckDB APIs and reset all pointers on failure. */
 static int load_DUCKDB_FUNCTION_POINTERS(const HWND hwnd, const HMODULE dll)
 {
     if (!dll)
@@ -42,7 +43,7 @@ check_version:
         if (swprintf(
             msg,
             MSG_MAX_LENGTH,
-            L"Unable to load function: %hs, please check duckdb version\nMinimum supported version: %hs\nLoaded library: %hs",
+            L"Unable to load function: %hs\nMinimum supported version: %hs\nLoaded DuckDB version: %hs",
             func_name,
             DUCKDB_REQUIRED_VERSION,
             DUCKDB_LIBRARY_VERSION()
@@ -79,20 +80,20 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
     if ((path_len == 0) || (path_len >= MAX_PATH))
         goto fail;
 
-    // Copy caller workbook path from Excel string format
+    /* Copy the length-prefixed caller path. */
     wchar_t folder_path[MAX_PATH];
 
     wmemcpy(folder_path, caller_path + 1, path_len);
 
     folder_path[path_len] = L'\0';
 
-    // Extract containing directory from workbook path
+    /* Extract the directory containing the caller. */
     HRESULT hr = PathCchRemoveFileSpec(folder_path, MAX_PATH);
 
     if (FAILED(hr))
         goto fail;
 
-    // Build absolute DLL path relative to the workbook directory
+    /* Build the DuckDB DLL path relative to the caller. */
     wchar_t dll_path[MAX_PATH];
 
     hr = PathCchCombineEx(
@@ -105,7 +106,7 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
     if (FAILED(hr))
         goto fail;
 
-    // Load DuckDB and resolve dependencies using the DLL directory
+    /* Load DuckDB and resolve dependencies from its directory. */
     HMODULE dll = LoadLibraryExW(
         dll_path,
         NULL,
@@ -125,7 +126,7 @@ HMODULE load_duckdb(const HWND hwnd, const wchar_t *caller_path, const wchar_t *
 fail:
 
     if (hwnd)
-        show_error(hwnd, L"Fail to load duckdb");
+        show_error(hwnd, L"Fail to load duckdb.dll.");
 
     return NULL;
 }
