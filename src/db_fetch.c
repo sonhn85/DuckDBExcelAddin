@@ -349,6 +349,7 @@ fail:
 #define TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_to_##XLTYPE
 #define TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE) DUCKDB_TYPE##_based_decimal_to_##XLTYPE
 
+/* Generate converters for non-DECIMAL DuckDB vectors. */
 #define DEFINE_NON_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO)                    \
 void TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col) \
 {                                                                                                                   \
@@ -389,6 +390,7 @@ void TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell
     }                                                                                                               \
 }
 
+/* Generate converters for DECIMAL vectors by storage type. */
 #define DEFINE_DECIMAL_CONVERTER_FUNCTION(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO)                        \
 void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, chunk_list *chunklist, idx_t col)     \
 {                                                                                                                   \
@@ -673,7 +675,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
             goto fail;
         }
 
-        // Transfer ownership via xlbitDLLFree 
+        /* Mark the result as add-in-owned. */ 
         cell->xltype = xltypeStr | xlbitDLLFree;
         cell->val.str = xlstr;
     }
@@ -716,7 +718,7 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
     range->val.array.lparray = lparray;
     lparray = NULL;
 
-    range->val.array.rows = (RW)(nrows + 1);   // +1 for header
+    range->val.array.rows = (RW)(nrows + 1);   /* Include the header row. */
     range->val.array.columns = (COL)ncols;
 
     return range;
