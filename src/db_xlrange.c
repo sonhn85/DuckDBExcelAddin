@@ -729,12 +729,12 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr, bool *zero_or_one)
 		&& endptr == trimmed + n
 		&& isfinite(d))
 	{
+		if (zero_or_one)
+			*zero_or_one = ((d == 0.0) || (d == 1.0)) ? true : false;
+
 		if (is_whole_number(d))
 		{
 			type = xltypeInt;
-			if (zero_or_one)
-				*zero_or_one = ((d == 0.0) || (d == 1.0)) ? true : false;
-
 			goto cleanup;
 		}
 		else
