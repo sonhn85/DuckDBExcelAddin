@@ -329,7 +329,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 | Other text | VARCHAR |
 | Empty, Excel error | Ignored during inference |
 
-*(\*)Text is trimmed of leading and trailing whitespaces.* 
+*(\*)Text values with leading or trailing whitespace are trimmed during inference.* 
 
 2. Sample the remaining rows up to the configured sample limit.
 
