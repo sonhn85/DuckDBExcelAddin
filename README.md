@@ -317,15 +317,6 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 | `strict` | 1.3.0 | 🟢 Optional | `true` | - When `true`, column names must be non-empty and unique or an error is raised.<br>- When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated column names are renamed to `name`, `name_1`, `name_2`, ...<br>- This option is ignored when `header=false`. |
 | `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | - When `true` an error is raised if values incompatible with inferred type are encountered.<br>- When `false` incompatible values are **silently** converted to NULL. |
 
-### Type Mapping
-
-| Excel Value | DuckDB Type |
-|-------------|-------------|
-| Number | DOUBLE or INTEGER |
-| Boolean | BOOLEAN |
-| Text | VARCHAR |
-| Empty/Error | NULL |
-
 ### Inference Strategy
 
 1. Scan for the first non-empty value and use its type as the candidate column type. Whole-number numeric cells are inferred as INTEGER when all sampled values fit within the INT32 range.
@@ -333,6 +324,15 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 2. Sample the remaining rows up to the configured sample limit.
 
 3. If incompatible types are encountered, the column type is promoted to DOUBLE or VARCHAR.
+
+| Value | Inferred As | Out-of-Sample Conversion |
+|---|---|---|
+| Whole numbers within the INT32 range and their text representations | INTEGER | Whole numbers: INTEGER<br>BOOLEAN: incompatible |
+| Other finite numbers and their text representations | DOUBLE | Numeric values: DOUBLE |
+| TRUE/FALSE and recognized text representations, including T/F, YES/NO, and Y/N, case-insensitive | BOOLEAN | BOOLEAN values: BOOLEAN<br>Numeric 0/1: FALSE/TRUE<br>Other numbers: incompatible |
+| Other text | VARCHAR | VARCHAR |
+| Empty, missing, `NULL`, or `N/A` | Ignored during inference | NULL |
+| Excel error | Ignored during inference | NULL |
 
 ## Date and Time Helpers
 
