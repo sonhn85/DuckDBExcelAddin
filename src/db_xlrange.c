@@ -625,8 +625,11 @@ static inline char *trim_whitespace(char *s, size_t *out_len)
 }
 
 /* Infer the Excel type represented by a string value. */
-static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
+static inline WORD get_xlstr_represented_type(wchar_t *xlstr, bool *zero_or_one)
 {
+	if (zero_or_one)
+		*zero_or_one = false;
+
 	char *s = NULL;
 	if (!xlstr
 		|| xlstr_to_utf8(&s, xlstr, NULL) == 0
@@ -640,34 +643,12 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 	size_t n;
 	char *trimmed = trim_whitespace(s, &n);
 
-	if (n == 0)
-	{
-		type = xltypeNil;
-		goto cleanup;
-	}
-
-	char *endptr = NULL;
-	errno = 0;
-	double d = strtod(trimmed, &endptr);
-	if (errno != ERANGE 
-		&& endptr != trimmed
-		&& endptr == trimmed + n
-		&& isfinite(d))
-	{
-		if (is_whole_number(d))
-		{
-			type = xltypeInt;
-			goto cleanup;
-		}
-		else
-		{
-			type = xltypeNum;
-			goto cleanup;
-		}
-	}
-
 	switch (n)
 	{
+		case 0:
+			type = xltypeNil;
+			goto cleanup;
+
 		case 1:
 			switch (trimmed[0])
 			{
@@ -740,6 +721,29 @@ static inline WORD get_xlstr_represented_type(wchar_t *xlstr)
 			break;
 	}
 
+	char *endptr = NULL;
+	errno = 0;
+	double d = strtod(trimmed, &endptr);
+	if (errno != ERANGE 
+		&& endptr != trimmed
+		&& endptr == trimmed + n
+		&& isfinite(d))
+	{
+		if (is_whole_number(d))
+		{
+			type = xltypeInt;
+			if (zero_or_one)
+				*zero_or_one = ((d == 0.0) || (d == 1.0)) ? true : false;
+
+			goto cleanup;
+		}
+		else
+		{
+			type = xltypeNum;
+			goto cleanup;
+		}
+	}
+
 	type = xltypeStr;
 
 cleanup:
@@ -800,7 +804,7 @@ static int infer_types
 				}
                 else if (cell_type == xltypeStr)
                 {
-					WORD type = get_xlstr_represented_type(cell->val.str);
+					WORD type = get_xlstr_represented_type(cell->val.str, NULL);
 					if (type != xltypeNil)
 					{
 						xltype = type;
@@ -837,7 +841,7 @@ static int infer_types
                         }
 						else if (cell_type == xltypeStr)
 						{
-							WORD type = get_xlstr_represented_type(cell->val.str);
+							WORD type = get_xlstr_represented_type(cell->val.str, NULL);
 							
 							if (type == xltypeNil)
 							{
@@ -872,7 +876,7 @@ static int infer_types
 						}
 						else if (cell_type == xltypeStr)
 						{
-							WORD type = get_xlstr_represented_type(cell->val.str);
+							WORD type = get_xlstr_represented_type(cell->val.str, NULL);
 							
 							if (type == xltypeInt
 								|| type == xltypeNum
@@ -929,8 +933,9 @@ static int infer_types
                         }
 						else if (cell_type == xltypeStr)
 						{
-							WORD type = get_xlstr_represented_type(cell->val.str);
-							if (type == xltypeBool || type == xltypeNil)
+							bool zero_or_one;
+							WORD type = get_xlstr_represented_type(cell->val.str, &zero_or_one);
+							if (type == xltypeBool || type == xltypeNil || zero_or_one)
 							{
 								continue;
 							}
@@ -1314,8 +1319,6 @@ static inline int cell_to_integer(
 			break;
 			
         case xltypeBool:
-			*out = cell->val.xbool ? 1 : 0;
-			res = 1;
 			break;
 
 		case xltypeStr:
@@ -1420,8 +1423,6 @@ static inline int cell_to_double(
 			break;
 
         case xltypeBool:
-			*out = cell->val.xbool ? 1.0 : 0.0;
-            res = 1;
 			break;
 
 		case xltypeStr:
@@ -1538,7 +1539,6 @@ static inline int cell_to_bool
 				break;
 			}
 
-            res = -1;
 			break;
 		}
 
@@ -1558,7 +1558,6 @@ static inline int cell_to_bool
 				break;
 			}
 
-            res = -1;
 			break;
 		}
 
@@ -1574,14 +1573,33 @@ static inline int cell_to_bool
 			}
 	
 			if (xlstr_to_utf8(&dest, src, NULL) == 0 || !dest)
-			{
-				res = -1;
 				break;
-			}
 
 			size_t n;
 			char *trimmed = trim_whitespace(dest, &n);
-			
+
+			char *endptr = NULL;
+			errno = 0;
+			double d = strtod(trimmed, &endptr);
+			if (errno != ERANGE 
+				&& endptr != trimmed
+				&& endptr == trimmed + n
+				&& isfinite(d))
+			{
+				if (d == 0.0)
+				{
+					*out = false;
+					res = 1;
+					break;
+				}
+				else if (d == 1.0)
+				{
+					*out = true;
+					res = 1;
+					break;
+				}
+			}
+
 			switch (n)
 			{
 				case 0:
@@ -1591,7 +1609,6 @@ static inline int cell_to_bool
 				case 1:
 					switch (trimmed[0])
 					{
-						case '1':
 						case 'Y':
 						case 'y':
 						case 'T':
@@ -1600,7 +1617,6 @@ static inline int cell_to_bool
 							res = 1;
 							break;
 
-						case '0':
 						case 'N':
 						case 'n':
 						case 'F':
@@ -1611,7 +1627,6 @@ static inline int cell_to_bool
 
 						
 						default:
-							res = -1;
 							break;
 					}
 					
@@ -1625,7 +1640,6 @@ static inline int cell_to_bool
 						break;
 					}
 					
-					res = -1;
 					break;
 
 
@@ -1658,7 +1672,6 @@ static inline int cell_to_bool
 						break;
 					}
 					
-					res = -1;
 					break;
 
 				case 5:
@@ -1669,11 +1682,9 @@ static inline int cell_to_bool
 						break;
 					}
 					
-					res = -1;
 					break;
 
 				default:
-					res = -1;
 					break;
 			}
 			
@@ -1689,7 +1700,6 @@ static inline int cell_to_bool
 			break;
 
         default:
-			res = -1;
 			break;
     }
 	
@@ -1978,7 +1988,7 @@ static void xlrange_scan
 					sizeof(errmsg),
 					"scanning xlrange",
 					state->colnames[c],
-					-1,
+					(long long)c,
 					(long long)state->next_row,
 					msg,
 					has_header
