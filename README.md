@@ -341,9 +341,9 @@ If sample is less than number of data rows (or `sample=0`), out-of-sample values
 
 | Inferred type | Compatible value |
 |---|---|
-| INTEGER | Same as inference rule<br>BOOLEAN likes value: incompatible |
+| INTEGER | Same as inference rule<br>TRUE/FALSE-like values are not incompatible |
 | DOUBLE | Same as inference rule |
-| BOOLEAN | Same as inference rule, plus<br>0/1 likes value: FALSE/TRUE |
+| BOOLEAN | Same as inference rule, plus<br>0/1-like values are compatible |
 | VARCHAR | Text, number, TRUE/FALSE |
 
 ## Date and Time Helpers
