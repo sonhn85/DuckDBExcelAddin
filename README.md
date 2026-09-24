@@ -321,6 +321,15 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 1. Scan for the first non-empty value and use its type as the candidate column type. Whole-number numeric cells are inferred as INTEGER when all sampled values fit within the INT32 range.
 
+| Value | Inferred As |
+|---|---|
+| Whole numbers within the INT32 range and their text representations | INTEGER |
+| Other finite numbers and their text representations | DOUBLE |
+| TRUE/FALSE and recognized text representations, including T/F, YES/NO, and Y/N, case-insensitive | BOOLEAN |
+| Other text | VARCHAR |
+| Empty | Ignored during inference |
+| Excel error | Ignored during inference |
+
 2. Sample the remaining rows up to the configured sample limit.
 
 3. If incompatible types are encountered, the column type is promoted to DOUBLE or VARCHAR.
