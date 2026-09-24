@@ -319,7 +319,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 ### Inference Strategy
 
-1. Scan for the first non-empty value and use its type as the candidate column type. Whole-number numeric cells are inferred as INTEGER when all sampled values fit within the INT32 range.
+1. Scan for the first non-empty value and use its type as the candidate column type.
 
 | Value | Inferred As |
 |---|---|
