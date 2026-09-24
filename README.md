@@ -323,12 +323,13 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 | Value | Inferred As |
 |---|---|
-| Whole numbers within the INT32 range and their text representations | INTEGER |
-| Other finite numbers and their text representations | DOUBLE |
-| TRUE/FALSE and recognized text representations, including T/F, YES/NO, and Y/N, case-insensitive | BOOLEAN |
+| Whole numbers within the INT32 range<br>and their text representations(*) | INTEGER |
+| Other finite numbers and their<br>text representations(*) | DOUBLE |
+| TRUE/FALSE and recognized text<br>representations(*), including<br>T/F, YES/NO, and Y/N, case-insensitive | BOOLEAN |
 | Other text | VARCHAR |
-| Empty | Ignored during inference |
-| Excel error | Ignored during inference |
+| Empty, Excel error | Ignored during inference |
+
+*(*)Text is trimmed of leading and trailing whitespace* 
 
 2. Sample the remaining rows up to the configured sample limit.
 
@@ -336,11 +337,15 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 ### Out-of-Sample Conversion
 
-| Inferred | Out-of-Sample Conversion |
+If sample is not `0` and sample is less than number of data rows, out-of-sample values are convert to inferred type.
+
+If incompatible values are encountered, an error is returned.
+
+| Inferred type | Compatible value |
 |---|---|
-| INTEGER | Same as inference rule<br>BOOLEAN: incompatible |
+| INTEGER | Same as inference rule<br>BOOLEAN likes value: incompatible |
 | DOUBLE | Same as inference rule |
-| BOOLEAN | Same as inference rule<br>Numeric 0/1: FALSE/TRUE |
+| BOOLEAN | Same as inference rule, plus<br>numeric 0/1 likes value: FALSE/TRUE |
 | VARCHAR | Other text |
 
 ## Date and Time Helpers
