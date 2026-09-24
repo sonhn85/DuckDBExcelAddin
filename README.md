@@ -335,6 +335,8 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 3. If incompatible types are encountered, the column type is promoted to DOUBLE or VARCHAR.
 
+*Examples can be found in `examples\test_cases.xlsx`.*
+
 ### Out-of-Sample Conversion
 
 If sample is less than number of data rows (or `sample=0`), out-of-sample values are converted to inferred type. An error is returned if conversion fails.
@@ -345,6 +347,8 @@ If sample is less than number of data rows (or `sample=0`), out-of-sample values
 | DOUBLE | Same as inference rule |
 | BOOLEAN | Same as inference rule, plus<br>0/1-like values are compatible |
 | VARCHAR | Text, number, TRUE/FALSE |
+
+*Examples can be found in `examples\test_cases.xlsx`.*
 
 ## Date and Time Helpers
 
