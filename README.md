@@ -329,7 +329,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 | Other text | VARCHAR |
 | Empty, Excel error | Ignored during inference |
 
-*(\*)Text is trimmed of leading and trailing whitespace* 
+*(\*)Text is trimmed of leading and trailing whitespaces.* 
 
 2. Sample the remaining rows up to the configured sample limit.
 
@@ -337,16 +337,14 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 ### Out-of-Sample Conversion
 
-If sample is not `0` and sample is less than number of data rows, out-of-sample values are convert to inferred type.
-
-If incompatible values are encountered, an error is returned.
+If sample is less than number of data rows (or `sample=0`), out-of-sample values are converted to inferred type. An error is returned if conversion fails.
 
 | Inferred type | Compatible value |
 |---|---|
 | INTEGER | Same as inference rule<br>BOOLEAN likes value: incompatible |
 | DOUBLE | Same as inference rule |
-| BOOLEAN | Same as inference rule, plus<br>numeric 0/1 likes value: FALSE/TRUE |
-| VARCHAR | Other text |
+| BOOLEAN | Same as inference rule, plus<br>0/1 likes value: FALSE/TRUE |
+| VARCHAR | Text, number, TRUE/FALSE |
 
 ## Date and Time Helpers
 
