@@ -334,14 +334,14 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 3. If incompatible types are encountered, the column type is promoted to DOUBLE or VARCHAR.
 
-| Value | Inferred As | Out-of-Sample Conversion |
-|---|---|---|
-| Whole numbers within the INT32 range and their text representations | INTEGER | Same rule<br>BOOLEAN: incompatible |
-| Other finite numbers and their text representations | DOUBLE | Same rule |
-| TRUE/FALSE and recognized text representations, including T/F, YES/NO, and Y/N, case-insensitive | BOOLEAN | Same rule<br>Numeric 0/1: FALSE/TRUE |
-| Other text | VARCHAR | VARCHAR |
-| Empty, missing, `NULL`, or `N/A` | Ignored during inference | NULL |
-| Excel error | Ignored during inference | NULL |
+### Out-of-Sample Conversion
+
+| Inferred | Out-of-Sample Conversion |
+|---|---|
+| INTEGER | Same as inference rule<br>BOOLEAN: incompatible |
+| DOUBLE | Same as inference rule |
+| BOOLEAN | Same as inference rule<br>Numeric 0/1: FALSE/TRUE |
+| VARCHAR | Other text |
 
 ## Date and Time Helpers
 
