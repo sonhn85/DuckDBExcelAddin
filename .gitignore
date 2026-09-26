@@ -7,6 +7,7 @@
 # Generated output directories
 /build/
 /dist/
+/duckdb_v2/target/
 
 # Runtime dependency
 duckdb.dll
@@ -19,3 +20,5 @@ duckdb.dll
 
 # OS junk
 Thumbs.db
+
+*.lock
