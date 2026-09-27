@@ -20,5 +20,3 @@ duckdb.dll
 
 # OS junk
 Thumbs.db
-
-*.lock
