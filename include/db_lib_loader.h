@@ -321,6 +321,17 @@ typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_function_set_error))(
     duckdb_function_info info,
     const char *error
 );
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_table_function_supports_projection_pushdown))(
+  duckdb_table_function table_function,
+  bool pushdown
+);
+typedef idx_t (*TO_DUCKDB_FUNCTION_TYPE(duckdb_init_get_column_count))(
+  duckdb_init_info info
+);
+typedef idx_t (*TO_DUCKDB_FUNCTION_TYPE(duckdb_init_get_column_index))(
+  duckdb_init_info info,
+  idx_t column_index
+);
 
 /* Scalar function API */
 typedef duckdb_scalar_function (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_scalar_function))(void);
@@ -484,7 +495,10 @@ X(duckdb_init_get_bind_data, DUCKDB_INIT_GET_BIND_DATA) \
 X(duckdb_init_set_init_data, DUCKDB_INIT_SET_INIT_DATA) \
 X(duckdb_init_set_error, DUCKDB_INIT_SET_ERROR) \
 X(duckdb_function_get_init_data, DUCKDB_FUNCTION_GET_INIT_DATA) \
-X(duckdb_function_set_error, DUCKDB_FUNCTION_SET_ERROR)
+X(duckdb_function_set_error, DUCKDB_FUNCTION_SET_ERROR) \
+X(duckdb_table_function_supports_projection_pushdown, DUCKDB_TABLE_FUNCTION_SUPPORTS_PROJECTION_PUSHDOWN) \
+X(duckdb_init_get_column_count, DUCKDB_INIT_GET_COLUMN_COUNT) \
+X(duckdb_init_get_column_index, DUCKDB_INIT_GET_COLUMN_INDEX)
 
 /* Scalar function API */
 #define DUCKDB_SCALAR_API_FUNCTIONS(X) \
