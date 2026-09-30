@@ -436,12 +436,14 @@ Parser Error: PIVOT statements with pivot elements extracted from the data canno
 
 Using a CTE does not bypass the restriction:
 
+```excel
 =DUCKDB.EXEC(
   "WITH cte AS (from xlrange(?))
    PIVOT cte ON col1 USING sum(col2) GROUP BY col0",
   A1:C5,
   1
 )
+```
 
 This may return an internal error such as:
 
