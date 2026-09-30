@@ -1,10 +1,10 @@
 # DuckDBExcelAddin
 
-[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.x-orange)](https://duckdb.org/)
-[![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)](#requirements)
-[![Excel 365](https://img.shields.io/badge/Excel-365-green)](#requirements)
-[![Excel 2024](https://img.shields.io/badge/Excel-2024-green)](#requirements)
-[![Excel 2021](https://img.shields.io/badge/Excel-2021-green)](#requirements)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.x-orange)](https://duckdb.org/) |
+[![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)](#requirements) |
+[![Excel 365](https://img.shields.io/badge/Excel-365-green)](#requirements) |
+[![Excel 2024](https://img.shields.io/badge/Excel-2024-green)](#requirements) |
+[![Excel 2021](https://img.shields.io/badge/Excel-2021-green)](#requirements) |
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 A native Microsoft Excel XLL add-in for querying Excel ranges with DuckDB SQL and parameter binding.
@@ -305,7 +305,14 @@ Supports column projection pushdown since version 1.7.0.
 Syntax:
 
 ```sql
-xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_errors=false)
+xlrange(
+  index,
+  sample=30,
+  all_varchar=false,
+  header=true,
+  strict=true,
+  ignore_errors=false
+)
 ```
 
 ### Options
@@ -314,10 +321,10 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 |-----------|-------|--------|---------|-------------|
 | `index` | | 🔴 **Required** | | 1-based position of an Excel range passed to formula. |
 | `all_varchar` | | 🟢 Optional | `false` | - When `true`, all values are returned as `VARCHAR` and type inference is disabled.<br>- When `false`, column type is inferred. |
-| `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference.<br>- A value of `0` samples all data rows.<br>- This option is ignored when `all_varchar=true`. |
+| `sample` | | 🟢 Optional | `30` | Number of data rows used for type inference.<br>- A value of `0` samples all data rows.<br>- Ignored when `all_varchar=true`. |
 | `header` | 1.2.0 | 🟢 Optional | `true` | - When `true`, the first row is interpreted as column names. <br>- When `false`, column names are generated as `column_0`, `column_1`, ... |
-| `strict` | 1.3.0 | 🟢 Optional | `true` | - When `true`, column names must be non-empty and unique or an error is raised.<br>- When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, ... and duplicated column names are renamed to `name`, `name_1`, `name_2`, ...<br>- This option is ignored when `header=false`. |
-| `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | - When `true` an error is raised if values incompatible with inferred type are encountered.<br>- When `false` incompatible values are **silently** converted to NULL. |
+| `strict` | 1.3.0 | 🟢 Optional | `true` | - When `true`, column names must be non-empty and unique; otherwise, an error is raised.<br>- When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, and so on. Duplicated names are renamed as `name`, `name_1`, `name_2`, and so on.<br>- Ignored when `header=false`. |
+| `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | - When `false` an error is raised if values incompatible with inferred type are encountered.<br>- When `true` incompatible values are **silently** converted to NULL. |
 
 ### Inference Strategy
 
@@ -341,7 +348,7 @@ xlrange(index, sample=n, all_varchar=false, header=true, strict=true, ignore_err
 
 ### Out-of-Sample Conversion
 
-If sample is less than number of data rows (or `sample=0`), out-of-sample values are converted to inferred type. An error is returned if conversion fails.
+If sample is less than number of data rows, out-of-sample values are converted to inferred type. An error is returned if conversion fails.
 
 | Inferred type | Compatible value |
 |---|---|
@@ -366,7 +373,10 @@ If sample is less than number of data rows (or `sample=0`), out-of-sample values
 
 Formulas cannot access cell number formats.
 
-When using `xlrange`, if header cells are numeric values formatted as dates or times. The Column names are registered as numeric strings. For example, the column will be name "46387" for Excel date December 31st, 2026.
+When using `xlrange`, numeric header cells formatted as dates or times are
+registered using their underlying numeric values rather than their displayed
+formats. For example, an Excel date displayed as December 31, 2026 may be
+registered as the column name `46387`.
 
 Workaround: Convert Excel date to text with `=TEXT(value, date_format)` formula first.
 
@@ -414,7 +424,11 @@ The following DuckDB types are not supported as Excel results:
 - UNION
 - VARIANT
 
-Workaround: Cast the value to `VARCHAR`.
+Workaround: Convert or serialize the value to `VARCHAR` before returning it to Excel.
+
+## `xlrange` Row Filter Pushdown
+
+Currently, `xlrange` does not support row filter pushdown because the DuckDB C API does not expose pushed filters to table functions.
 
 ## Dynamic `PIVOT` with Parameter Binding 
 
@@ -519,7 +533,7 @@ make ADDIN_VERSION=vx.x.x EXCEL_SDK_PATH=<excel-sdk> DUCKDB_INC_PATH=<duckdb-inc
 
 ## Tests
 
-The release package includes a workbook containing examples and regression tests for the major features of DuckDBExcelAddin.
+The release package includes a workbook containing examples and regression tests for the major features of DuckDBExcelAddin:
 
 ```text
 examples\test_cases.xlsx
