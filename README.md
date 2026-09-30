@@ -414,6 +414,47 @@ The following DuckDB types are not supported as Excel results:
 
 Workaround: Cast the value to `VARCHAR`.
 
+## Dynamic `PIVOT` with Parameter Binding 
+
+Currently, a dynamic `PIVOT`, meaning a `PIVOT` without an `IN` clause, cannot use parameters in its source query. This is a limitation of DuckDB’s dynamic `PIVOT` implementation.
+
+For example:
+
+```excel
+=DUCKDB.EXEC(
+  "PIVOT xlrange(?) ON col1 USING sum(col2) GROUP BY col0",
+  A1:C5,
+  1
+)
+```
+
+Returns:
+
+```text
+Parser Error: PIVOT statements with pivot elements extracted from the data cannot have parameters in their source...
+```
+
+Using a CTE does not bypass the restriction:
+
+=DUCKDB.EXEC(
+  "WITH cte AS (from xlrange(?))
+   PIVOT cte ON col1 USING sum(col2) GROUP BY col0",
+  A1:C5,
+  1
+)
+
+This may return an internal error such as:
+
+```text
+INTERNAL Error: Attempted to dereference unique_ptr that is NULL! ...
+```
+
+Workaround:
+
+* Specify the pivot values explicitly with an `IN` clause.
+* Store the parameter value in a DuckDB variable and reference the variable from the query, where applicable.
+* Materialize the parameterized source in a temporary table or temporary view, and then pivot that object without parameters.
+
 # Troubleshooting
 
 | Issue | Verify |
