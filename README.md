@@ -298,7 +298,9 @@ The result of the final statement is materialized and returned to Excel as a dyn
 
 ## xlrange
 
-Exposes Excel ranges as table function.
+Exposes Excel ranges as a table function.
+
+Supports column projection pushdown since version 1.7.0.
 
 Syntax:
 
