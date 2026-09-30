@@ -64,6 +64,8 @@ typedef struct xlrange_scan_state_t
     idx_t           vec_size;   /* Duckdb vector size */
     bool            has_header;
 	bool			ignore_errors;
+	idx_t 			ncols_pushdowned; /* Number of pushdowned columns */
+	idx_t 			*cols_pushdowned; /* Index of pushdowned columns */
 } xlrange_scan_state_t;
 
 /* Return an allocated unique name using numeric suffixes. */
@@ -1192,6 +1194,8 @@ static void free_scan_state(void *p)
         free(state->colnames);
     }
 
+	free(state->cols_pushdowned);
+
     free(state);
 }
 
@@ -1213,6 +1217,7 @@ static void xlrange_init(duckdb_init_info info)
     duckdb_type          *types = NULL;
     char                 **colnames = NULL;
     size_t               ncols = 0;
+	idx_t 				 *cols_pushdowned = NULL;
 
     char errmsg[ERR_MSG_MAX_LEN];
     errmsg[0] = '\0';
@@ -1226,6 +1231,27 @@ static void xlrange_init(duckdb_init_info info)
 
     bool has_header = bind_data->has_header;
     ncols = bind_data->ncols;
+
+	idx_t ncols_pushdowned = DUCKDB_INIT_GET_COLUMN_COUNT(info);
+	if (ncols_pushdowned > 0)
+	{
+		cols_pushdowned = malloc((size_t)ncols_pushdowned * sizeof(*cols_pushdowned));
+		if (!cols_pushdowned)
+		{
+			SET_INIT_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+			goto fail;
+		}
+		for (idx_t i = 0; i < ncols_pushdowned; i++)
+		{
+			idx_t idx = DUCKDB_INIT_GET_COLUMN_INDEX(info, i);
+			if(idx >= ncols)
+			{
+				SET_INIT_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
+				goto fail;
+			}
+			cols_pushdowned[i] = idx;
+		}
+	}
 
     state = calloc(1, sizeof(*state));
     types = malloc(ncols * sizeof(*types));
@@ -1263,6 +1289,9 @@ static void xlrange_init(duckdb_init_info info)
     colnames = NULL;
     state->vec_size = DUCKDB_VECTOR_SIZE();
 	state->ignore_errors = bind_data->ignore_errors;
+	state->ncols_pushdowned = ncols_pushdowned;
+	state->cols_pushdowned = cols_pushdowned;
+	cols_pushdowned = NULL;
 
     DUCKDB_INIT_SET_INIT_DATA(info, state, free_scan_state);
     state = NULL;
@@ -1285,6 +1314,8 @@ cleanup:
 
         free(colnames);
     }
+
+	free(cols_pushdowned);
 
     free(types);
     free_scan_state(state);
@@ -1590,12 +1621,14 @@ static inline int cell_to_bool
 				{
 					*out = false;
 					res = 1;
+					free(dest);
 					break;
 				}
 				else if (d == 1.0)
 				{
 					*out = true;
 					res = 1;
+					free(dest);
 					break;
 				}
 			}
@@ -1856,9 +1889,11 @@ static void xlrange_scan
 
     while (state->next_row < state->nrows && out_rows < state->vec_size)
     {
-        for (size_t c = 0; c < state->ncols; c++)
+        for (idx_t i = 0; i < state->ncols_pushdowned; i++)
         {
-            duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(output, c);
+			size_t c = (size_t)(state->cols_pushdowned[i]);
+
+            duckdb_vector vec = DUCKDB_DATA_CHUNK_GET_VECTOR(output, i);
             if (!vec)
             {
                 SET_SCANNING_ERROR(errmsg, sizeof(errmsg), ERR_MSG_XLRANGE_INTERNAL);
@@ -2075,6 +2110,7 @@ int register_xlrange_func
     DUCKDB_TABLE_FUNCTION_SET_BIND(table_func, xlrange_bind);
     DUCKDB_TABLE_FUNCTION_SET_INIT(table_func, xlrange_init);
     DUCKDB_TABLE_FUNCTION_SET_FUNCTION(table_func, xlrange_scan);
+	DUCKDB_TABLE_FUNCTION_SUPPORTS_PROJECTION_PUSHDOWN(table_func, true);
 
     if (DUCKDB_REGISTER_TABLE_FUNCTION(con, table_func) != DuckDBSuccess)
         goto fail;
