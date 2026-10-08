@@ -326,8 +326,7 @@ xlrange(
 | `header` | 1.2.0 | 🟢 Optional | `true` | - When `true`, the first row is interpreted as column names. <br>- When `false`, column names are generated as `column_0`, `column_1`, ... |
 | `strict` | 1.3.0 | 🟢 Optional | `true` | - When `true`, column names must be non-empty and unique; otherwise, an error is raised.<br>- When `false`, empty column names are generated as `unnamed_0`, `unnamed_1`, and so on. Duplicated names are renamed as `name`, `name_1`, `name_2`, and so on.<br>- Ignored when `header=false`. |
 | `ignore_errors` | 1.5.0 | 🟢 Optional | `false` | - When `false` an error is raised if values incompatible with inferred type are encountered.<br>- When `true` incompatible values are **silently** converted to NULL. |
-| `columns` | 1.8.0 | 🟢 Optional | | - Struct that explicitly specifies column types using the format {column_name: column_type, ...}.
-Supported types are INTEGER, DOUBLE, BOOLEAN, and VARCHAR.<br>- Supported type: 'INTEGER', 'DOUBLE', 'BOOLEAN', 'VARCHAR'.<br> - Types of columns not included in the struct are inferred from sampled data.<br> - Ignore when `all_varchar=true`. |
+| `columns` | 1.8.0 | 🟢 Optional | | - Struct that explicitly specifies column types using the format {column_name: column_type, ...}.<br>- Supported types are INTEGER, DOUBLE, BOOLEAN, and VARCHAR.<br>- Supported type: 'INTEGER', 'DOUBLE', 'BOOLEAN', 'VARCHAR'.<br> - Types of columns not included in the struct are inferred from sampled data.<br> - Ignore when `all_varchar=true`. |
 
 ### Inference Strategy
 
