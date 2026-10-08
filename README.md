@@ -489,7 +489,8 @@ Workaround:
 
 - Excel XLL SDK
 - DuckDB C API (`duckdb.h`)
-- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and maintained _Arthur O'Dwyer_
+- [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and maintained _Arthur O'Dwyer_ (included)
+- [utf8proc](https://github.com/JuliaStrings/utf8proc) (not included)
 
 ## Toolchain
 
@@ -550,6 +551,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
 Additional thanks to:
 
 - [uthash](https://troydhanson.github.io/uthash/) by _troydhanson_ and  maintained _Arthur O'Dwyer_
+- [utf8proc](https://github.com/JuliaStrings/utf8proc)
 - Microsoft Excel XLL SDK
 
 # License
