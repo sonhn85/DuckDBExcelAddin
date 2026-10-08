@@ -216,6 +216,9 @@ typedef uint32_t (*TO_DUCKDB_FUNCTION_TYPE(duckdb_string_t_length))(
 typedef const char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_string_t_data))(
     duckdb_string_t *string
 );
+typedef char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_varchar))(
+    duckdb_value value
+);
 
 /* Numeric and date/time helpers */
 typedef double (*TO_DUCKDB_FUNCTION_TYPE(duckdb_hugeint_to_double))(
@@ -223,6 +226,21 @@ typedef double (*TO_DUCKDB_FUNCTION_TYPE(duckdb_hugeint_to_double))(
 );
 typedef double (*TO_DUCKDB_FUNCTION_TYPE(duckdb_uhugeint_to_double))(
     duckdb_uhugeint val
+);
+
+/* Struct helpers */
+typedef idx_t (*TO_DUCKDB_FUNCTION_TYPE(duckdb_struct_type_child_count))(
+    duckdb_logical_type type
+);
+typedef char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_struct_type_child_name))(
+    duckdb_logical_type type, idx_t index
+);
+typedef duckdb_value (*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_struct_child))(
+    duckdb_value value, idx_t index
+);
+typedef duckdb_logical_type (*TO_DUCKDB_FUNCTION_TYPE(duckdb_struct_type_child_type))(
+    duckdb_logical_type type,
+idx_t index
 );
 
 /* Table function registration */
@@ -458,12 +476,20 @@ X(duckdb_validity_set_row_invalid, DUCKDB_VALIDITY_SET_ROW_INVALID)
 /* String helpers */
 #define DUCKDB_STRING_FUNCTIONS(X) \
 X(duckdb_string_t_length, DUCKDB_STRING_T_LENGTH) \
-X(duckdb_string_t_data, DUCKDB_STRING_T_DATA)
+X(duckdb_string_t_data, DUCKDB_STRING_T_DATA) \
+X(duckdb_get_varchar, DUCKDB_GET_VARCHAR)
 
 /* Numeric and date/time helpers */
 #define DUCKDB_UTILITY_FUNCTIONS(X) \
 X(duckdb_hugeint_to_double, DUCKDB_HUGEINT_TO_DOUBLE) \
 X(duckdb_uhugeint_to_double, DUCKDB_UHUGEINT_TO_DOUBLE)
+
+/* Struct helpers */
+#define DUCKDB_STRUCT_FUNCTIONS(X) \
+X(duckdb_struct_type_child_count, DUCKDB_STRUCT_TYPE_CHILD_COUNT) \
+X(duckdb_struct_type_child_name, DUCKDB_STRUCT_TYPE_CHILD_NAME) \
+X(duckdb_get_struct_child, DUCKDB_GET_STRUCT_CHILD) \
+X(duckdb_struct_type_child_type, DUCKDB_STRUCT_TYPE_CHILD_TYPE)
 
 /* Table function registration */
 #define DUCKDB_TABLE_FUNCTION_FUNCTIONS(X) \
@@ -535,6 +561,7 @@ DUCKDB_VALUE_FUNCTIONS(X) \
 DUCKDB_VECTOR_FUNCTIONS(X) \
 DUCKDB_STRING_FUNCTIONS(X) \
 DUCKDB_UTILITY_FUNCTIONS(X) \
+DUCKDB_STRUCT_FUNCTIONS(X) \
 DUCKDB_TABLE_FUNCTION_FUNCTIONS(X) \
 DUCKDB_BIND_API_FUNCTIONS(X) \
 DUCKDB_SCAN_API_FUNCTIONS(X) \
