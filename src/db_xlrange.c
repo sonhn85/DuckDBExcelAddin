@@ -572,7 +572,8 @@ static int get_columns_param
 			}
 
 			duckdb_type col_type;
-			if (_stricmp(type_str, "integer") == 0) 
+			if (_stricmp(type_str, "integer") == 0
+				|| _stricmp(type_str, "int") == 0) 
 			{
 				col_type = DUCKDB_TYPE_INTEGER;
 			}
@@ -580,11 +581,13 @@ static int get_columns_param
 			{
 				col_type = DUCKDB_TYPE_DOUBLE;
 			}
-			else if (_stricmp(type_str, "boolean") == 0)
+			else if (_stricmp(type_str, "boolean") == 0
+					 || _stricmp(type_str, "bool") == 0)
 			{
 				col_type = DUCKDB_TYPE_BOOLEAN;
 			}
-			else if (_stricmp(type_str, "varchar") == 0)
+			else if (_stricmp(type_str, "varchar") == 0
+					 || _stricmp(type_str, "text") == 0)
 			{
 				col_type = DUCKDB_TYPE_VARCHAR;
 			}
@@ -1097,226 +1100,232 @@ static int infer_types
     {
 		duckdb_type type;
 
-		int find_result = find_column_type(hash, col_names[i], &type);
-
-		if (find_result < 0)
+		if (all_varchar)
 		{
-			SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
-			return 0;
+			type = DUCKDB_TYPE_VARCHAR;
 		}
-		else if (find_result == 0)
+		else
 		{
-			WORD xltype = xltypeStr;
-
-			if (!all_varchar && ndatarows > 0)
+			int find_result = find_column_type(hash, col_names[i], &type);
+			if (find_result < 0)
 			{
-				LPXLOPER12 cell = has_header ? data + ncols : data;
+				SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
+				return 0;
+			}
+			else if (find_result == 0)
+			{
+				WORD xltype = xltypeStr;
 
-				/* Find the first non-null type candidate. */
-				size_t sample_idx;
-
-				for (sample_idx = 0; sample_idx < nsample; sample_idx++, cell += ncols)
+				if (!all_varchar && ndatarows > 0)
 				{
-					WORD cell_type = LPXLOPER12_TYPE(cell);
+					LPXLOPER12 cell = has_header ? data + ncols : data;
 
-					if (cell_type == xltypeInt)
-					{
-						xltype = xltypeInt;
-						break;
-					}
-					else if (cell_type == xltypeNum)
-					{
-						xltype = is_whole_number(cell->val.num) ? xltypeInt : xltypeNum;
-						break;
-					}
-					else if (cell_type == xltypeBool)
-					{
-						xltype = xltypeBool;
-						break;
-					}
-					else if (cell_type == xltypeStr)
-					{
-						WORD type = get_xlstr_represented_type(cell->val.str, NULL);
-						if (type != xltypeNil)
-						{
-							xltype = type;
-							break;
-						}
-					}
-				}
+					/* Find the first non-null type candidate. */
+					size_t sample_idx;
 
-				/* Reconcile the candidate with remaining sampled values. */
-				if (xltype != xltypeStr)
-				{
-					cell += ncols;
-					sample_idx++;
-
-					for (size_t j = sample_idx; j < nsample; j++, cell += ncols)
+					for (sample_idx = 0; sample_idx < nsample; sample_idx++, cell += ncols)
 					{
 						WORD cell_type = LPXLOPER12_TYPE(cell);
 
-						if (xltype == xltypeInt)
+						if (cell_type == xltypeInt)
 						{
-							if (cell_type == xltypeInt
-								|| cell_type == xltypeNil
-								|| cell_type == xltypeMissing
-								|| cell_type == xltypeErr)
-							{
-								continue;
-							}
-							if (cell_type == xltypeNum)
-							{
-								if (!is_whole_number(cell->val.num))
-									xltype = xltypeNum;
-
-								continue;
-							}
-							else if (cell_type == xltypeStr)
-							{
-								WORD type = get_xlstr_represented_type(cell->val.str, NULL);
-								
-								if (type == xltypeNil)
-								{
-									continue;
-								}
-								else if (type == xltypeNum)
-								{
-									xltype = xltypeNum;
-									continue;
-								}
-								else if (type != xltypeInt)
-								{
-									xltype = xltypeStr;
-									break;
-								}
-							}
-							else
-							{
-								xltype = xltypeStr;
-								break;
-							}
-						}
-						else if (xltype == xltypeNum)
-						{
-							if (cell_type == xltypeInt
-								|| cell_type == xltypeNum
-								|| cell_type == xltypeNil
-								|| cell_type == xltypeMissing
-								|| cell_type == xltypeErr)
-							{
-								continue;
-							}
-							else if (cell_type == xltypeStr)
-							{
-								WORD type = get_xlstr_represented_type(cell->val.str, NULL);
-								
-								if (type == xltypeInt
-									|| type == xltypeNum
-									|| type == xltypeNil)
-								{
-									continue;
-								}
-								else
-								{
-									xltype = xltypeStr;
-									break;
-								}
-							}
-							else
-							{
-								xltype = xltypeStr;
-								break;
-							}
-						}
-						else if (xltype == xltypeBool)
-						{
-							if (cell_type == xltypeBool
-								|| cell_type == xltypeNil 
-								|| cell_type == xltypeMissing 
-								|| cell_type == xltypeErr)
-							{
-								continue;
-							}
-							else if (cell_type == xltypeInt)
-							{
-								int v = cell->val.w;
-								if (v == 0 || v == 1)
-								{
-									continue;
-								}
-								else
-								{
-									xltype = xltypeStr;
-									break;
-								}
-							}
-							else if (cell_type == xltypeNum)
-							{
-								double v = cell->val.num;
-								if ((v == 0.0) || (v == 1.0))
-								{
-									continue;
-								}
-								else
-								{
-									xltype = xltypeStr;
-									break;
-								}
-							}
-							else if (cell_type == xltypeStr)
-							{
-								bool zero_or_one;
-								WORD type = get_xlstr_represented_type(cell->val.str, &zero_or_one);
-								if (type == xltypeBool || type == xltypeNil || zero_or_one)
-								{
-									continue;
-								}
-								else
-								{
-									xltype = xltypeStr;
-									break;
-								}
-							}
-							else
-							{
-								xltype = xltypeStr;
-								break;
-							}
-						}
-						else if (cell_type == xltypeNil
-								|| cell_type == xltypeMissing
-								|| cell_type == xltypeErr)
-						{
-							continue;
-						}
-						else
-						{
-							xltype = xltypeStr;
+							xltype = xltypeInt;
 							break;
+						}
+						else if (cell_type == xltypeNum)
+						{
+							xltype = is_whole_number(cell->val.num) ? xltypeInt : xltypeNum;
+							break;
+						}
+						else if (cell_type == xltypeBool)
+						{
+							xltype = xltypeBool;
+							break;
+						}
+						else if (cell_type == xltypeStr)
+						{
+							WORD type = get_xlstr_represented_type(cell->val.str, NULL);
+							if (type != xltypeNil)
+							{
+								xltype = type;
+								break;
+							}
+						}
+					}
+
+					/* Reconcile the candidate with remaining sampled values. */
+					if (xltype != xltypeStr)
+					{
+						cell += ncols;
+						sample_idx++;
+
+						for (size_t j = sample_idx; j < nsample; j++, cell += ncols)
+						{
+							WORD cell_type = LPXLOPER12_TYPE(cell);
+
+							if (xltype == xltypeInt)
+							{
+								if (cell_type == xltypeInt
+									|| cell_type == xltypeNil
+									|| cell_type == xltypeMissing
+									|| cell_type == xltypeErr)
+								{
+									continue;
+								}
+								if (cell_type == xltypeNum)
+								{
+									if (!is_whole_number(cell->val.num))
+										xltype = xltypeNum;
+
+									continue;
+								}
+								else if (cell_type == xltypeStr)
+								{
+									WORD type = get_xlstr_represented_type(cell->val.str, NULL);
+									
+									if (type == xltypeNil)
+									{
+										continue;
+									}
+									else if (type == xltypeNum)
+									{
+										xltype = xltypeNum;
+										continue;
+									}
+									else if (type != xltypeInt)
+									{
+										xltype = xltypeStr;
+										break;
+									}
+								}
+								else
+								{
+									xltype = xltypeStr;
+									break;
+								}
+							}
+							else if (xltype == xltypeNum)
+							{
+								if (cell_type == xltypeInt
+									|| cell_type == xltypeNum
+									|| cell_type == xltypeNil
+									|| cell_type == xltypeMissing
+									|| cell_type == xltypeErr)
+								{
+									continue;
+								}
+								else if (cell_type == xltypeStr)
+								{
+									WORD type = get_xlstr_represented_type(cell->val.str, NULL);
+									
+									if (type == xltypeInt
+										|| type == xltypeNum
+										|| type == xltypeNil)
+									{
+										continue;
+									}
+									else
+									{
+										xltype = xltypeStr;
+										break;
+									}
+								}
+								else
+								{
+									xltype = xltypeStr;
+									break;
+								}
+							}
+							else if (xltype == xltypeBool)
+							{
+								if (cell_type == xltypeBool
+									|| cell_type == xltypeNil 
+									|| cell_type == xltypeMissing 
+									|| cell_type == xltypeErr)
+								{
+									continue;
+								}
+								else if (cell_type == xltypeInt)
+								{
+									int v = cell->val.w;
+									if (v == 0 || v == 1)
+									{
+										continue;
+									}
+									else
+									{
+										xltype = xltypeStr;
+										break;
+									}
+								}
+								else if (cell_type == xltypeNum)
+								{
+									double v = cell->val.num;
+									if ((v == 0.0) || (v == 1.0))
+									{
+										continue;
+									}
+									else
+									{
+										xltype = xltypeStr;
+										break;
+									}
+								}
+								else if (cell_type == xltypeStr)
+								{
+									bool zero_or_one;
+									WORD type = get_xlstr_represented_type(cell->val.str, &zero_or_one);
+									if (type == xltypeBool || type == xltypeNil || zero_or_one)
+									{
+										continue;
+									}
+									else
+									{
+										xltype = xltypeStr;
+										break;
+									}
+								}
+								else
+								{
+									xltype = xltypeStr;
+									break;
+								}
+							}
+							else if (cell_type == xltypeNil
+									|| cell_type == xltypeMissing
+									|| cell_type == xltypeErr)
+							{
+								continue;
+							}
+							else
+							{
+								xltype = xltypeStr;
+								break;
+							}
 						}
 					}
 				}
-			}
 
-			/* Map the inferred Excel type to a DuckDB type. */   
-			switch (xltype)
-			{
-				case xltypeInt:
-					type = DUCKDB_TYPE_INTEGER;
-					break;
+				/* Map the inferred Excel type to a DuckDB type. */   
+				switch (xltype)
+				{
+					case xltypeInt:
+						type = DUCKDB_TYPE_INTEGER;
+						break;
 
-				case xltypeNum:
-					type = DUCKDB_TYPE_DOUBLE;
-					break;
+					case xltypeNum:
+						type = DUCKDB_TYPE_DOUBLE;
+						break;
 
-				case xltypeBool:
-					type = DUCKDB_TYPE_BOOLEAN;
-					break;
+					case xltypeBool:
+						type = DUCKDB_TYPE_BOOLEAN;
+						break;
 
-				case xltypeStr:
-				default:
-					type = DUCKDB_TYPE_VARCHAR;
-					break;
+					case xltypeStr:
+					default:
+						type = DUCKDB_TYPE_VARCHAR;
+						break;
+				}
 			}
 		}
 
