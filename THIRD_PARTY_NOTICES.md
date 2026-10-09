@@ -12,13 +12,13 @@ The `uthash` library is licensed under the BSD 1-Clause License, as described in
 
 Please review the license text in the component's source directory and comply with its terms in addition to this project's MIT license.
 
-### utf8proc
+### `utf8proc`
 
-This project statically links against utf8proc.
+This project statically links against `utf8proc`.
 
 Project: https://github.com/JuliaStrings/utf8proc
 
-License: MIT/Expat and Unicode data license
+License: MIT/Expat and Unicode data license.
 
 The complete upstream license text follows.
 
