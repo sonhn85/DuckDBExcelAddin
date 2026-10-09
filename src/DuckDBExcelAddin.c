@@ -57,7 +57,7 @@ static void unreg_funcs(const LPXLOPER12 xllPath)
             &xRegId, \
             2, \
             &xllPath, \
-            TempStr12(XLNAME) \
+            TempStr12(TO_WSTR(XLLNAME)) \
         ) == xlretSuccess) { \
             Excel12f(xlfUnregister, 0, 1, &xRegId); \
             Excel12f(xlFree, 0, 1, &xRegId); \
