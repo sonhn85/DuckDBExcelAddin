@@ -1033,6 +1033,37 @@ cleanup:
 }
 
 /*
+ * Return:
+ *  1 if found
+ *  0 if not found
+ * -1 on normalization/internal failure
+ */
+static inline int find_column_type(
+    column_hash_t *hash,
+    const char *col_name,
+    duckdb_type *result
+)
+{
+    if (!col_name || !result)
+        return -1;
+
+    char *normalized = normalize_column_name(col_name);
+    if (!normalized)
+        return -1;
+
+    column_hash_t *entry = NULL;
+    HASH_FIND_STR(hash, normalized, entry);
+
+    free(normalized);
+
+    if (!entry)
+        return 0;
+
+    *result = entry->type;
+    return 1;
+}
+
+/*
  * Infer each column type from sampled data.
  *
  * Results must be freed by caller.
@@ -1066,13 +1097,14 @@ static int infer_types
     {
 		duckdb_type type;
 
-		column_hash_t *entry;
-		HASH_FIND_STR(hash, col_names[i], entry);
-		if (entry)
+		int find_result = find_column_type(hash, col_names[i], &type);
+
+		if (find_result < 0)
 		{
-			type = entry->type;
+			SET_BIND_ERROR(errmsg, err_buf_size, ERR_MSG_XLRANGE_INTERNAL);
+			return 0;
 		}
-		else
+		else if (find_result == 0)
 		{
 			WORD xltype = xltypeStr;
 
