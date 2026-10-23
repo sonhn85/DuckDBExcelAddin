@@ -1,6 +1,7 @@
 # DuckDBExcelAddin
 
 [![DuckDB](https://img.shields.io/badge/DuckDB-1.5.x-orange)](https://duckdb.org/) |
+[![DuckDB](https://img.shields.io/badge/DuckDB-2.0.x-orange)](https://duckdb.org/) |
 [![Windows](https://img.shields.io/badge/Windows-10%2B-lightblue)](#requirements) |
 [![Excel 365](https://img.shields.io/badge/Excel-365-green)](#requirements) |
 [![Excel 2024](https://img.shields.io/badge/Excel-2024-green)](#requirements) |
@@ -68,7 +69,7 @@ This project was inspired by [xlDuckDB](https://github.com/RusselWebber/xlDuckDb
   - Microsoft 365 Excel
   - Excel 2024
   - Excel 2021
-- DuckDB 1.5.x (`duckdb.dll`)
+- DuckDB 1.5+ (`duckdb.dll`)
 
 ## Enable the Add-in
 
@@ -479,7 +480,7 @@ Workaround:
 
 | Issue | Verify |
 |---------|---------|
-| Add-in fails to load | - Excel is 64-bit<br>- `duckdb.dll` is located next to `DuckDBExcelAddIn.xll`<br>- `duckdb.dll` version is 1.5.x<br>- The add-in is not blocked |
+| Add-in fails to load | - Excel is 64-bit<br>- `duckdb.dll` is located next to `DuckDBExcelAddIn.xll`<br>- `duckdb.dll` version is 1.5+<br>- The add-in is not blocked |
 | `#VALUE!` returned | - The add-in is loaded<br>- Dynamic Arrays are supported<br>- Input ranges and Result size do not exceed Excel limits |
 | `#SPILL!` error | - The destination spill range is empty<br>- There are enough rows and columns available to display the result |
 
