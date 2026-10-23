@@ -217,6 +217,7 @@ int fetch_chunks(
             case DUCKDB_TYPE_TIMESTAMP_S:
             case DUCKDB_TYPE_TIMESTAMP_MS:
             case DUCKDB_TYPE_TIMESTAMP_NS:
+            case DUCKDB_TYPE_SQLNULL:
                 dec_scales[c] = 0;
                 break;
             
@@ -288,21 +289,24 @@ int fetch_chunks(
                 goto loop_fail;
             }
 
-            void *vec_data = DUCKDB_VECTOR_GET_DATA(vec);
-            if (!vec_data)
+            if (col_types[c] != DUCKDB_TYPE_SQLNULL)
             {
-                format_error_message(
-                    errmsg,
-                    buf_size,
-                    "fetching data",
-                    NULL,
-                    ERR_MSG_INTERNAL
-                );
-                goto loop_fail;
+                void *vec_data = DUCKDB_VECTOR_GET_DATA(vec);
+                if (!vec_data)
+                {
+                    format_error_message(
+                        errmsg,
+                        buf_size,
+                        "fetching data",
+                        NULL,
+                        ERR_MSG_INTERNAL
+                    );
+                    goto loop_fail;
+                }
+
+                vectors[c] = vec_data;
+                valid_masks[c] = DUCKDB_VECTOR_GET_VALIDITY(vec);
             }
-    
-            vectors[c] = vec_data;
-            valid_masks[c] = DUCKDB_VECTOR_GET_VALIDITY(vec);
         }
 
         node->nrows = nrows;
@@ -430,6 +434,22 @@ void TO_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(LPXLOPER12 cell, ch
             }                                                                                                       \
         }                                                                                                           \
     }                                                                                                               \
+}
+
+static void SQLNULL_to_XLERR(LPXLOPER12 cell, chunk_list *chunklist, idx_t col)
+{
+    idx_t ncols = chunklist->ncols;
+    for (chunk_node *node = chunklist->head; node!=NULL; node = node->next)                                         \
+    {
+        idx_t nrows = node->nrows;
+        for (idx_t i = 0; i < nrows; ++i)
+        {
+            cell->xltype = xltypeErr;                                                                   \
+            cell->val.err = xlerrNA;
+            
+            cell += ncols;
+        }
+    }
 }
 
 #define INT_TO_DBL \
@@ -684,6 +704,10 @@ LPXLOPER12 chunks_to_range(chunk_list *chunklist)
     {
         switch (chunklist->col_types[c])
         {
+            case DUCKDB_TYPE_SQLNULL:
+                SQLNULL_to_XLERR(cell, chunklist, c);
+                break;
+
             #define NON_DECIMAL_CASES(DUCKDB_TYPE, VECTOR_TYPE, XLTYPE, CONVERTER_MACRO) \
             case TO_DUCKDB_TYPE_ENUM(DUCKDB_TYPE): \
                 TO_NON_DECIMAL_CONVERTER_FUNCTION_NAME(DUCKDB_TYPE, XLTYPE)(cell, chunklist, c); \
