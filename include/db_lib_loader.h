@@ -118,6 +118,10 @@ typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_bind_null))(
     duckdb_prepared_statement prepared_statement,
     idx_t param_idx
 );
+typedef const char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_parameter_name))(
+    duckdb_prepared_statement prepared_statement,
+    idx_t index
+);
 
 /* Result metadata */
 typedef idx_t (*TO_DUCKDB_FUNCTION_TYPE(duckdb_column_count))(
@@ -434,7 +438,8 @@ X(duckdb_bind_double, DUCKDB_BIND_DOUBLE) \
 X(duckdb_bind_int32, DUCKDB_BIND_INT32) \
 X(duckdb_bind_boolean, DUCKDB_BIND_BOOLEAN) \
 X(duckdb_bind_null, DUCKDB_BIND_NULL) \
-X(duckdb_bind_varchar, DUCKDB_BIND_VARCHAR)
+X(duckdb_bind_varchar, DUCKDB_BIND_VARCHAR) \
+X(duckdb_parameter_name, DUCKDB_PARAMETER_NAME)
 
 /* Result metadata */
 #define DUCKDB_RESULT_META_FUNCTIONS(X) \
