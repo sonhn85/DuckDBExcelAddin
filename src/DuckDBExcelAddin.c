@@ -379,6 +379,8 @@ static int bind_params(
     if (n_named_param > 0 && n_named_param != nplaceholders)
         return -1;
 
+    nplaceholders -= n_named_param;
+
     if (nparams < nplaceholders)
         return -1;
 
