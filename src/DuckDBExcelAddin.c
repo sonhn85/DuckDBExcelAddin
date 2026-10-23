@@ -363,6 +363,21 @@ static int bind_params(
         return -1;
 
     size_t nplaceholders = (size_t)DUCKDB_NPARAMS(stmt);
+    
+    /* Count named parameters. */
+    size_t n_named_param = 0;
+    for (size_t i = 0; i < nplaceholders; i++) {
+        const char *param_name = DUCKDB_PARAMETER_NAME(stmt, (idx_t)(i + 1));
+        if (param_name && !(param_name[0] >= '1' && param_name[0] <= '9'))
+        {
+            DUCKDB_FREE((void *)param_name);
+            ++n_named_param;
+        }
+    }
+
+    /* Mixed named parameters and positional parameters is not supported. */
+    if (n_named_param > 0 && n_named_param != nplaceholders)
+        return -1;
 
     if (nparams < nplaceholders)
         return -1;
@@ -596,6 +611,12 @@ static LPXLOPER12 run_sql_create_range(
 
         /* Advance past parameters consumed by this statement. */
         nparams -= (size_t)n_bind;
+
+        /*if (i + 1 == stmt_count && nparams != 0)
+        {
+            result = make_string_cell(ERR_MSG_PARAM_BIND_FAILURE);
+            goto step_cleanup;
+        }*/
 
         if (n_bind > 0)
             params += n_bind;
