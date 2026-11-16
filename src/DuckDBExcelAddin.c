@@ -368,18 +368,23 @@ static int bind_params(
     size_t n_named_param = 0;
     for (size_t i = 0; i < nplaceholders; i++) {
         const char *param_name = DUCKDB_PARAMETER_NAME(stmt, (idx_t)(i + 1));
-        if (param_name && !(param_name[0] >= '1' && param_name[0] <= '9'))
-        {
+        if (param_name) {
+            if (!(param_name[0] >= '1' && param_name[0] <= '9'))
+                ++n_named_param;
+
             DUCKDB_FREE((void *)param_name);
-            ++n_named_param;
         }
     }
 
-    /* Mixed named parameters and positional parameters is not supported. */
-    if (n_named_param > 0 && n_named_param != nplaceholders)
-        return -1;
-
-    nplaceholders -= n_named_param;
+    if (n_named_param > 0) {
+        /* Mixed named parameters and positional parameters is not supported. */
+        if (n_named_param != nplaceholders) {
+            return -1;
+        } else {
+            /* Named parmameter binding is not supported. If variables are provided, use variable short-hand feature (DuckDB 2.0). */
+            return 0;
+        }
+    }
 
     if (nparams < nplaceholders)
         return -1;
@@ -478,6 +483,7 @@ static LPXLOPER12 run_sql_create_range(
     char *db_path_utf8 = NULL;
 	char *sql_utf8 = NULL;
     char *init_sql_utf8 = NULL;
+    duckdb_config config = NULL;
     duckdb_database db = NULL;
     duckdb_connection con = NULL;
     duckdb_table_function xlrange_func = NULL;
@@ -505,16 +511,35 @@ static LPXLOPER12 run_sql_create_range(
         goto cleanup;
     }
   
+    if (DUCKDB_CREATE_CONFIG(&config) != DuckDBSuccess)
+    {
+        result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
+        goto cleanup;
+    }
+
+    if (DUCKDB_SET_CONFIG(config, "allow_unsigned_extensions", "true") != DuckDBSuccess)
+    {
+        result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
+        goto cleanup;
+    }
+
 	if (is_null_or_whitespace_xlstr(db_path))
 	{
-        if (DUCKDB_OPEN(NULL, &db) != DuckDBSuccess)
+        char *msg = NULL;
+        if (DUCKDB_OPEN_EXT(NULL, &db, config, &msg) != DuckDBSuccess)
         {
-            result = make_string_cell(ERR_MSG_DUCKDB_INIT_FAILURE);
+            result = make_string_cell(
+                msg ? msg : ERR_MSG_DUCKDB_INIT_FAILURE
+            );
+
+            if (msg)
+                DUCKDB_FREE(msg);
+
             goto cleanup;
         }
 	} else {
         char *msg = NULL;
-		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, NULL, &msg) != DuckDBSuccess)
+		if (DUCKDB_GET_OR_CREATE_FROM_CACHE(db_cache, db_path_utf8, &db, config, &msg) != DuckDBSuccess)
         {
             result = make_string_cell(
                 msg ? msg : ERR_MSG_DUCKDB_INIT_FAILURE
@@ -614,11 +639,12 @@ static LPXLOPER12 run_sql_create_range(
         /* Advance past parameters consumed by this statement. */
         nparams -= (size_t)n_bind;
 
-        /*if (i + 1 == stmt_count && nparams != 0)
+        /* Check for unused parameters. */
+        if (i + 1 == stmt_count && nparams != 0)
         {
             result = make_string_cell(ERR_MSG_PARAM_BIND_FAILURE);
             goto step_cleanup;
-        }*/
+        }
 
         if (n_bind > 0)
             params += n_bind;
@@ -696,6 +722,9 @@ cleanup:
     
     if (db)
         DUCKDB_CLOSE(&db);
+
+    if (config)
+        DUCKDB_DESTROY_CONFIG(&config);
 
     if (!result)
         result = make_string_cell(ERR_MSG_INTERNAL);
