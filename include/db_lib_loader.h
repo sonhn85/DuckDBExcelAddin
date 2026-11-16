@@ -20,6 +20,13 @@
 typedef const char *(*TO_DUCKDB_FUNCTION_TYPE(duckdb_library_version))(void);
 
 /* Database lifecycle */
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_config))(duckdb_config *out_config);
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_set_config))(
+    duckdb_config config,
+    const char *name,
+    const char *option
+);
+typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_destroy_config))(duckdb_config *config);
 typedef duckdb_instance_cache (*TO_DUCKDB_FUNCTION_TYPE(duckdb_create_instance_cache))(void);
 typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_or_create_from_cache))(
 	duckdb_instance_cache instance_cache,
@@ -31,9 +38,11 @@ typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_get_or_create_from_cache))
 typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_destroy_instance_cache))(
 	duckdb_instance_cache *instance_cache
 );
-typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_open))(
+typedef duckdb_state (*TO_DUCKDB_FUNCTION_TYPE(duckdb_open_ext))(
     const char *path,
-    duckdb_database *out_database
+    duckdb_database *out_database,
+    duckdb_config config,
+    char **out_error
 );
 typedef void (*TO_DUCKDB_FUNCTION_TYPE(duckdb_close))(
     duckdb_database *database
@@ -404,10 +413,13 @@ X(duckdb_library_version, DUCKDB_LIBRARY_VERSION)
 
 /* Database lifecycle */
 #define DUCKDB_DATABASE_FUNCTIONS(X) \
+X(duckdb_create_config, DUCKDB_CREATE_CONFIG) \
+X(duckdb_set_config, DUCKDB_SET_CONFIG) \
+X(duckdb_destroy_config, DUCKDB_DESTROY_CONFIG) \
 X(duckdb_create_instance_cache, DUCKDB_CREATE_INSTANCE_CACHE) \
 X(duckdb_get_or_create_from_cache, DUCKDB_GET_OR_CREATE_FROM_CACHE) \
 X(duckdb_destroy_instance_cache, DUCKDB_DESTROY_INSTANCE_CACHE) \
-X(duckdb_open, DUCKDB_OPEN) \
+X(duckdb_open_ext, DUCKDB_OPEN_EXT) \
 X(duckdb_close, DUCKDB_CLOSE) \
 X(duckdb_connect, DUCKDB_CONNECT) \
 X(duckdb_disconnect, DUCKDB_DISCONNECT)
